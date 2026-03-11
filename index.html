@@ -1,0 +1,1005 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2487.7">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="en"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1">&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1">&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</p>
+<p class="p1">&lt;title&gt;Lemonade Stand - 8-Bit Edition&lt;/title&gt;</p>
+<p class="p1">&lt;link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;display=swap" rel="stylesheet"&gt;</p>
+<p class="p1">&lt;style&gt;</p>
+<p class="p1">*{margin:0;padding:0;box-sizing:border-box;}</p>
+<p class="p1">body{background:#0a0a1a;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh;font-family:'Press Start 2P',monospace;overflow:hidden;}</p>
+<p class="p1">#wrap{position:relative;width:800px;height:500px;}</p>
+<p class="p1">#gameCanvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer;}</p>
+<p class="p1">.scanlines{position:absolute;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.12) 2px,rgba(0,0,0,0.12) 4px);pointer-events:none;z-index:5;}</p>
+<p class="p1">#hosting{color:#444;font-size:8px;margin-top:12px;text-align:center;font-family:'Press Start 2P',monospace;line-height:1.8;}</p>
+<p class="p1">&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p1">&lt;div id="wrap"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;canvas id="gameCanvas" width="800" height="500"&gt;&lt;/canvas&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="scanlines"&gt;&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p1">&lt;div id="hosting"&gt;CLICK TO PLAY &amp;nbsp;|&amp;nbsp; PRESS ENTER/SPACE TO ADVANCE&lt;/div&gt;</p>
+<p class="p1">&lt;script&gt;</p>
+<p class="p1">// ============================================================</p>
+<p class="p1">//<span class="Apple-converted-space">  </span>LEMONADE STAND — 8-BIT EDITION</p>
+<p class="p1">// ============================================================</p>
+<p class="p1">const C = document.getElementById('gameCanvas');</p>
+<p class="p1">const ctx = C.getContext('2d');</p>
+<p class="p1">ctx.imageSmoothingEnabled = false;</p>
+<p class="p2"><br></p>
+<p class="p1">// ── CONSTANTS ─────────────────────────────────────────────</p>
+<p class="p1">const S = {START:'START',SETUP:'SETUP',WEATHER:'WEATHER',BUSY:'BUSY',SUMMARY:'SUMMARY',GAMEOVER:'GAMEOVER',BANKRUPT:'BANKRUPT',FF:'FF'};</p>
+<p class="p2"><br></p>
+<p class="p1">const WEATHER = {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>SUNNY:<span class="Apple-converted-space">  </span>{n:'Sunny &amp; Hot',<span class="Apple-converted-space">  </span>d:1.8, sky1:'#2196F3',sky2:'#BBDEFB', gc:'#FFD700'},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>CLOUDY: {n:'Partly Cloudy',d:1.1, sky1:'#546E7A',sky2:'#B0BEC5', gc:'#B0C4DE'},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>OVER: <span class="Apple-converted-space">  </span>{n:'Overcast', <span class="Apple-converted-space">    </span>d:0.7, sky1:'#37474F',sky2:'#78909C', gc:'#9E9E9E'},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>RAINY:<span class="Apple-converted-space">  </span>{n:'Rainy',<span class="Apple-converted-space">        </span>d:0.4, sky1:'#1A237E',sky2:'#3949AB', gc:'#4682B4'},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>STORMY: {n:'Stormy', <span class="Apple-converted-space">      </span>d:0.2, sky1:'#0D0D0D',sky2:'#212121', gc:'#455A64'},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>WINDY:<span class="Apple-converted-space">  </span>{n:'Windy',<span class="Apple-converted-space">        </span>d:0.9, sky1:'#1B5E20',sky2:'#81C784', gc:'#80CBC4'},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>PERFECT:{n:'Perfect Day!', d:2.5, sky1:'#1A237E',sky2:'#42A5F5', gc:'#FF80AB'},</p>
+<p class="p1">};</p>
+<p class="p1">const WK = Object.keys(WEATHER);</p>
+<p class="p2"><br></p>
+<p class="p1">const EM = {LOVE:'LOVE',HAPPY:'HAPPY',MEH:'MEH',ANNOY:'ANNOY',GROSS:'GROSS',HOT:'HOT',COLD:'COLD'};</p>
+<p class="p2"><br></p>
+<p class="p1">const ICOST = {lemons:0.50, sugar:0.20, ice:0.10};</p>
+<p class="p2"><br></p>
+<p class="p1">// ── PALETTES ──────────────────────────────────────────────</p>
+<p class="p1">const PAL = {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>BLACK:'#0F0F0F', WHITE:'#FCFCFC', RED:'#D82800', ORANGE:'#FC7460',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>YELLOW:'#FCD840', LEMON:'#FCFC00', GREEN:'#00B800', LTGREEN:'#7CFC00',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>CYAN:'#00FCFC', BLUE:'#0058F8', LTBLUE:'#3CBCFC', PURPLE:'#6844FC',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>PINK:'#F878F8', BROWN:'#783000', LTBROWN:'#B87858', GOLD:'#D8B800',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>GRAY:'#7C7C7C', LTGRAY:'#BCBCBC', DKBLUE:'#00008B', NAVY:'#000050',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>SKIN:'#F8B878', SKIN2:'#C87848', SKIN3:'#E0A060',</p>
+<p class="p1">};</p>
+<p class="p2"><br></p>
+<p class="p1">// ── GAME STATE ────────────────────────────────────────────</p>
+<p class="p1">let G = {};</p>
+<p class="p1">function initGame() {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G = {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>state: S.START,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>day: 1, money: 20.00,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>recipe: {lemons:5, sugar:5, ice:5},</p>
+<p class="p1"><span class="Apple-converted-space">    </span>price: 1.00,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>weather: 'CLOUDY',</p>
+<p class="p1"><span class="Apple-converted-space">    </span>history: [],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>customers: [], cIdx: 0, cupsToday: 0, revToday: 0, costToday: 0, profToday: 0,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>event: null,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>frame: 0, titleT: 0,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>clouds: Array.from({length:6},(_,i)=&gt;({x:i*130,y:25+i%3*22,spd:0.25+i*0.05,sz:1+i%3*0.4})),</p>
+<p class="p1"><span class="Apple-converted-space">    </span>rain: [], lightning:{on:false,t:0}, leaves:[],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>customers_active: [],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>custTimer: 0, custInterval: 55,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>standAnim: 0,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>weatherTimer: 0,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>hz: {},</p>
+<p class="p1"><span class="Apple-converted-space">    </span>mouse: {x:0,y:0,down:false,drag:null},</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ffFlash: null, ffRunning: false,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>eventApplied: false,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>};</p>
+<p class="p1">}</p>
+<p class="p1">initGame();</p>
+<p class="p2"><br></p>
+<p class="p1">// ── UTILS ─────────────────────────────────────────────────</p>
+<p class="p1">const rnd = (a,b) =&gt; Math.floor(Math.random()*(b-a+1))+a;</p>
+<p class="p1">const clamp = (v,a,b) =&gt; Math.max(a,Math.min(b,v));</p>
+<p class="p1">const fmt$ = v =&gt; (v&lt;0?'-':'')+'$'+Math.abs(v).toFixed(2);</p>
+<p class="p2"><br></p>
+<p class="p1">function quality(r) {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dl=Math.abs(r.lemons-5), ds=Math.abs(r.sugar-5), di=Math.abs(r.ice-5);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dev = dl+ds+di;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const q = clamp(1-dev/15, 0, 1);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const gross = (r.lemons&gt;=9&amp;&amp;r.sugar&lt;=2)||(r.sugar&gt;=9&amp;&amp;r.lemons&lt;=2)||</p>
+<p class="p1"><span class="Apple-converted-space">                </span>(r.ice&gt;=9&amp;&amp;r.lemons&lt;=2)||(r.lemons&lt;=1&amp;&amp;r.sugar&lt;=1&amp;&amp;r.ice&lt;=1);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return {q, gross};</p>
+<p class="p1">}</p>
+<p class="p1">function batchCost(r) { return r.lemons*ICOST.lemons + r.sugar*ICOST.sugar + r.ice*ICOST.ice; }</p>
+<p class="p2"><br></p>
+<p class="p1">function pickWeather() {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const r=Math.random();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(r&lt;0.05) return 'PERFECT';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(r&lt;0.25) return 'SUNNY';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(r&lt;0.45) return 'CLOUDY';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(r&lt;0.60) return 'OVER';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(r&lt;0.75) return 'RAINY';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(r&lt;0.85) return 'STORMY';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return 'WINDY';</p>
+<p class="p1">}</p>
+<p class="p1">function pickEvent() {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(Math.random()&gt;0.15) return null;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return ['HEALTH','SCHOOL','HEATWAVE'][rnd(0,2)];</p>
+<p class="p1">}</p>
+<p class="p1">function eventName(e) {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return e==='HEALTH'?'Health Inspector!':e==='SCHOOL'?'School Let Out Early!':'Heatwave Bonus!';</p>
+<p class="p1">}</p>
+<p class="p1">function grade(profit) {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(profit&gt;=100) return 'S';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(profit&gt;=75)<span class="Apple-converted-space">  </span>return 'A';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(profit&gt;=50)<span class="Apple-converted-space">  </span>return 'B';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(profit&gt;=30)<span class="Apple-converted-space">  </span>return 'C';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(profit&gt;=10)<span class="Apple-converted-space">  </span>return 'D';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return 'F';</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── CUSTOMER SIM ──────────────────────────────────────────</p>
+<p class="p1">function buildCustomers() {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const w = WEATHER[G.weather];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const {q, gross} = quality(G.recipe);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let base = Math.round(w.d * rnd(8,16));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.event==='SCHOOL') base = Math.round(base*2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.event==='HEATWAVE'&amp;&amp;G.weather==='SUNNY') base = Math.round(base*1.5);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>base = Math.max(0, base);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const skins=[PAL.SKIN,PAL.SKIN2,PAL.SKIN3,'#C68642','#8D5524'];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const shirts=['#E53935','#8E24AA','#1E88E5','#00897B','#F4511E','#6D4C41','#3949AB','#00ACC1'];</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>return Array.from({length:base}, (_,i) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let em, cups=0, tip=0, buys=true;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(gross){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.GROSS; buys=false;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} else if(G.weather==='SUNNY'&amp;&amp;q&gt;0.5&amp;&amp;Math.random()&lt;0.4){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.HOT; cups=rnd(2,4);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} else if((G.weather==='RAINY'||G.weather==='STORMY')&amp;&amp;Math.random()&lt;0.35){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.COLD; buys=Math.random()&lt;0.4; cups=buys?1:0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} else if(G.price&lt;=0.75&amp;&amp;q&gt;=0.7){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.LOVE; cups=rnd(2,4); tip=Math.random()&lt;0.5?0.25:0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} else if(G.price&lt;=1.5&amp;&amp;q&gt;=0.45){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.HAPPY; cups=rnd(1,2);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} else if(G.price&gt;3.0){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.ANNOY; buys=false;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} else if(q&lt;0.3){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.MEH; buys=Math.random()&lt;0.5; cups=1;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>em=EM.HAPPY; cups=1;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(!buys) cups=0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>return {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>id:i, em, cups, tip,</p>
+<p class="p1"><span class="Apple-converted-space">      </span>skin: skins[rnd(0,4)], shirt: shirts[rnd(0,7)],</p>
+<p class="p1"><span class="Apple-converted-space">      </span>hair:['#1a1a1a','#8B4513','#FFD700','#C0392B','#2C3E50'][rnd(0,4)],</p>
+<p class="p1"><span class="Apple-converted-space">      </span>umbrella: G.weather==='RAINY'||G.weather==='STORMY',</p>
+<p class="p1"><span class="Apple-converted-space">      </span>x:-35, y:285, tx: 130+rnd(-10,10), state:'walk', etimer:0, flip:false,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>});</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── DRAWING HELPERS ───────────────────────────────────────</p>
+<p class="p1">function pr(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(~~x,~~y,~~w,~~h);}</p>
+<p class="p1">function pt(text,x,y,sz,c,align='left'){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font=`${sz}px 'Press Start 2P'`;ctx.fillStyle=c;ctx.textAlign=align;ctx.textBaseline='top';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText(text,x,y);</p>
+<p class="p1">}</p>
+<p class="p1">function pbox(x,y,w,h,fill,stroke,sw=2){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,w,h,fill);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle=stroke;ctx.lineWidth=sw;ctx.strokeRect(x+1,y+1,w-2,h-2);</p>
+<p class="p1">}</p>
+<p class="p1">function btn(x,y,w,h,label,bg,fg,sz=8,id=null){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const hover=id&amp;&amp;G.hz[id]&amp;&amp;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.mouse.x&gt;=G.hz[id].x&amp;&amp;G.mouse.x&lt;=G.hz[id].x+G.hz[id].w&amp;&amp;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.mouse.y&gt;=G.hz[id].y&amp;&amp;G.mouse.y&lt;=G.hz[id].y+G.hz[id].h;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pbox(x,y,w,h,hover?lighten(bg):bg,'#FCFCFC',2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(label,x+w/2,y+h/2-sz/2+1,sz,fg,'center');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(id) G.hz[id]={x,y,w,h};</p>
+<p class="p1">}</p>
+<p class="p1">function lighten(hex){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const mix=(v,t=40)=&gt;Math.min(255,v+t);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return `rgb(${mix(r)},${mix(g)},${mix(b)})`;</p>
+<p class="p1">}</p>
+<p class="p1">function pixelSprite(px,x,y,scale,colors){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let r=0;r&lt;px.length;r++)</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(let c=0;c&lt;px[r].length;c++)</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(px[r][c]){ctx.fillStyle=colors[px[r][c]-1]||'#000';ctx.fillRect(~~(x+c*scale),~~(y+r*scale),scale,scale);}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── SCENE ─────────────────────────────────────────────────</p>
+<p class="p1">function drawScene(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const w=WEATHER[G.weather];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const grad=ctx.createLinearGradient(0,0,0,310);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>grad.addColorStop(0,w.sky1);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>grad.addColorStop(1,w.sky2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=grad; ctx.fillRect(0,0,500,310);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,310,500,30,'#2E7D32');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,310,500,5,'#388E3C');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,340,500,40,'#BDBDBD');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#9E9E9E';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let x=0;x&lt;500;x+=50) ctx.fillRect(x,340,2,40);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillRect(0,340,500,2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,380,500,120,'#424242');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FDD835';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let x=0;x&lt;500;x+=70) ctx.fillRect(x,428,35,5);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,375,500,8,'#757575');</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawSun(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!['SUNNY','CLOUDY','PERFECT'].includes(G.weather)) return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const t=G.frame*0.02, y=45+Math.sin(t)*4;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FFF176';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;8;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const a=i/8*Math.PI*2+t*0.5;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const rx=60+Math.cos(a)*28, ry=y+Math.sin(a)*28;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.save();ctx.translate(rx,ry);ctx.rotate(a);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillRect(-2,-7,4,14);ctx.restore();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sp=[[0,0,1,1,1,1,0,0],[0,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,0],[0,0,1,1,1,1,0,0]];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pixelSprite(sp,44,y-16,4,['#FDD835']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.weather==='SUNNY'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const sh=Math.sin(G.frame*0.12)*1.5;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.strokeStyle=`rgba(255,220,100,0.18)`;ctx.lineWidth=2;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(let i=0;i&lt;4;i++){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.beginPath();ctx.moveTo(i*70+10,315);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.bezierCurveTo(i*70+30,295+sh,i*70+55,300-sh,i*70+80,315);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.stroke();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawRainbow(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.weather!=='PERFECT') return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const a=Math.min(0.55, G.frame*0.008);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const cols=['#F44336','#FF9800','#FFEB3B','#4CAF50','#2196F3','#9C27B0'];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;cols.length;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.save();ctx.globalAlpha=a;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.strokeStyle=cols[i];ctx.lineWidth=9;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.beginPath();ctx.arc(250,380,140-i*9,Math.PI,0);ctx.stroke();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.restore();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawClouds(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const cc=G.weather==='STORMY'?'#37474F':G.weather==='OVER'?'#78909C':'#ECEFF1';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const cl of G.clouds){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>cl.x+=cl.spd; if(cl.x&gt;560) cl.x=-120;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const s=cl.sz*20, cx=cl.x, cy=cl.y;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillStyle=cc;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillRect(cx,cy+s*0.5,s*2,s*0.75);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillRect(cx+s*0.25,cy,s*1.5,s);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillRect(cx+s*0.75,cy-s*0.25,s,s*0.75);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawRain(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!['RAINY','STORMY'].includes(G.weather)) return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const c=G.weather==='STORMY'?'#90CAF9':'#64B5F6';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.rain.length&lt;90) G.rain.push({x:rnd(0,500),y:rnd(-50,0),spd:4+rnd(0,4)*0.5,len:8+rnd(0,8)});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=c;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const d of G.rain){ ctx.fillRect(d.x,d.y,2,d.len); d.y+=d.spd; d.x-=0.8; if(d.y&gt;500){d.y=-d.len;d.x=rnd(0,500);}}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.weather==='STORMY'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(!G.lightning.on&amp;&amp;Math.random()&lt;0.004) G.lightning={on:true,t:12};</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.lightning.on){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.fillStyle=`rgba(255,255,220,${G.lightning.t/12*0.4})`;ctx.fillRect(0,0,500,500);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.strokeStyle='#FFFF88';ctx.lineWidth=2;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const lx=100+rnd(0,200);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.beginPath();ctx.moveTo(lx,0);ctx.lineTo(lx-15,70);ctx.lineTo(lx+8,70);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.lineTo(lx-12,150);ctx.lineTo(lx+4,150);ctx.lineTo(lx-20,240);ctx.stroke();</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.lightning.t--; if(G.lightning.t&lt;=0) G.lightning.on=false;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawWind(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.weather!=='WINDY') return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.leaves.length&lt;14) G.leaves.push({x:-10,y:80+rnd(0,200),spd:2+rnd(0,3),rot:Math.random()*Math.PI*2,rs:0.08+Math.random()*0.15,c:['#388E3C','#8D6E63','#F9A825','#E53935'][rnd(0,3)]});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const lf of G.leaves){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.save();ctx.translate(lf.x,lf.y+Math.sin(lf.x*0.05)*18);ctx.rotate(lf.rot);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillStyle=lf.c;ctx.fillRect(-5,-3,10,6);ctx.restore();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>lf.x+=lf.spd;lf.rot+=lf.rs;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(lf.x&gt;510){lf.x=-10;lf.y=80+rnd(0,200);}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle='rgba(200,235,255,0.25)';ctx.lineWidth=1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;4;i++){const ox=(G.frame*2.5+i*90)%520;ctx.beginPath();ctx.moveTo(ox,90+i*35);ctx.lineTo(ox+55,90+i*35);ctx.stroke();}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── LEMONADE STAND ────────────────────────────────────────</p>
+<p class="p1">function drawStand(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sx=70, sy=230;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx+8,sy+95,14,30,PAL.BROWN);pr(sx+118,sy+95,14,30,PAL.BROWN);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx,sy+55,150,40,PAL.BROWN);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx+18,sy+55,4,40,'#5D3A1A');pr(sx+48,sy+55,4,40,'#5D3A1A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx+78,sy+55,4,40,'#5D3A1A');pr(sx+108,sy+55,4,40,'#5D3A1A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx-2,sy+48,154,10,'#6D4C41');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx-2,sy+48,154,4,'#795548');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx+8,sy-45,8,98,'#B71C1C');pr(sx+134,sy-45,8,98,'#B71C1C');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx-8,sy-45,166,22,'#C62828');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FFEE58';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;9;i++) ctx.fillRect(sx-8+i*18,sy-45,9,22);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#C62828';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;8;i++){const fx=sx-5+i*20;pr(fx,sy-23,6,8,'#E53935');pr(fx+2,sy-15,2,4,'#C62828');}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx+18,sy-34,114,18,'#FDD835');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx+18,sy-34,114,2,'#F9A825');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=PAL.BLACK; ctx.font="7px 'Press Start 2P'"; ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('LEMONADE',sx+75,sy-30);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="5px 'Press Start 2P'"; ctx.fillText('FRESH &amp; COLD',sx+75,sy-20);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawPitcher(sx+50,sy+14);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(sx+92,sy+10,50,26,'#FFFDE7');pr(sx+92,sy+10,50,2,'#F9A825');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=PAL.BLACK; ctx.font="6px 'Press Start 2P'"; ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('$'+G.price.toFixed(2),sx+117,sy+14);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;3;i++) drawCup(sx+14+i*14,sy+26,'#FFFDE7');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawOperator(sx+85,sy-10);</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawPitcher(x,y){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,22,24,'#FFFDE7');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+20,y+5,7,14,'#F5F5F5');pr(x+22,y+5,3,14,'#E0E0E0');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+2,y+6,18,16,'#FFF176');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+6,y-5,10,10,'#FDD835');pr(x+8,y-3,6,6,'#FFEE58');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+5,y+9,2,2,'#FFFFFF');pr(x+11,y+7,2,2,'#FFFFFF');pr(x+16,y+12,2,2,'#FFFFFF');</p>
+<p class="p1">}</p>
+<p class="p1">function drawCup(x,y,c){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,11,13,c);pr(x+1,y+2,9,9,'#FFF176');pr(x,y,11,2,'#E0E0E0');</p>
+<p class="p1">}</p>
+<p class="p1">function drawOperator(x,y){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,8,8,PAL.SKIN);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+2,y+2,2,2,PAL.BLACK);pr(x+4,y+2,2,2,PAL.BLACK);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+2,y+5,4,1,'#D32F2F');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+1,y-2,6,3,'#FF8A65');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x-1,y+8,10,10,'#1565C0');</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── CUSTOMER SPRITE ───────────────────────────────────────</p>
+<p class="p1">function drawCustomer(cust){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const x=~~cust.x, y=~~cust.y;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.save();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(cust.flip){ctx.translate(x*2+16,0);ctx.scale(-1,1);}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const walk=cust.state==='walk'?Math.sin(G.frame*0.28)*2:0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='rgba(0,0,0,0.18)';ctx.fillRect(x+2,y+29,14,3);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+1,y+26,6,4,'#1A1A1A');pr(x+9,y+26,6,4,'#1A1A1A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+3,y+18,4,9+walk,'#1565C0');pr(x+9,y+18,4,9-walk,'#1565C0');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+2,y+8,12,11,cust.shirt);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y+9,3,8,cust.skin);pr(x+13,y+9,3,8,cust.skin);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+3,y,10,9,cust.skin);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+3,y,10,3,cust.hair);pr(x+2,y,2,5,cust.hair);pr(x+12,y,2,5,cust.hair);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+5,y+3,2,2,PAL.BLACK);pr(x+9,y+3,2,2,PAL.BLACK);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x+6,y+6,4,1,'#333');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(cust.umbrella){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(x+7,y-22,2,22,'#B71C1C');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(x-4,y-28,24,5,'#EF5350');pr(x-2,y-32,20,5,'#EF5350');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(x+2,y-35,12,5,'#EF5350');pr(x+5,y-38,6,5,'#EF5350');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.restore();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(cust.state==='react'&amp;&amp;cust.etimer&gt;0) drawEmoBubble(x+8,y-8,cust.em,cust.etimer);</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawEmoBubble(cx,cy,em,t){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const a=Math.min(1,t/8), bob=Math.sin(t*0.4)*3;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const bx=cx-16, by=cy-46+bob;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.save();ctx.globalAlpha=a;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(bx,by,32,28,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle='#212121';ctx.lineWidth=2;ctx.strokeRect(bx+1,by+1,30,26);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(bx+11,by+27,6,4,'#FCFCFC');pr(bx+13,by+31,4,3,'#FCFCFC');pr(bx+14,by+34,2,2,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawEmoFace(bx+4,by+4,em);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.restore();</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawEmoFace(x,y,em){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,24,20,'#FFCC80');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>switch(em){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case EM.LOVE:</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+3,y+4,4,4,'#E91E63');pr(x+13,y+4,4,4,'#E91E63');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+2,y+3,2,2,'#E91E63');pr(x+5,y+3,2,2,'#E91E63');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+12,y+3,2,2,'#E91E63');pr(x+15,y+3,2,2,'#E91E63');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+13,14,2,'#212121');pr(x+3,y+12,2,2,'#212121');pr(x+17,y+12,2,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+5,y+15,12,2,'#FFFFFF');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case EM.HAPPY:</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+5,3,3,'#212121');pr(x+14,y+5,3,3,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+13,14,2,'#212121');pr(x+3,y+12,2,2,'#212121');pr(x+17,y+12,2,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case EM.MEH:</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+5,3,3,'#212121');pr(x+14,y+5,3,3,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+5,y+14,12,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case EM.ANNOY:</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+2,y+4,7,2,'#F44336');pr(x+13,y+4,7,2,'#F44336');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+6,3,2,'#212121');pr(x+14,y+6,3,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+14,14,2,'#212121');pr(x+3,y+15,2,2,'#212121');pr(x+17,y+15,2,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case EM.GROSS:</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x,y,24,20,'#C8E6C9');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+3,y+4,6,3,'#2E7D32');pr(x+13,y+4,6,3,'#2E7D32');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+6,3,2,'#1B5E20');pr(x+14,y+6,3,2,'#1B5E20');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+13,3,4,'#212121');pr(x+8,y+12,3,3,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+12,y+13,3,4,'#212121');pr(x+16,y+12,3,3,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+20,y+2,3,6,'#42A5F5');pr(x+21,y+1,2,2,'#42A5F5');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case EM.HOT:</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x,y,24,20,'#FFAB91');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+3,y+6,7,2,'#212121');pr(x+13,y+6,7,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+5,y+11,12,5,'#212121');pr(x+6,y+12,10,4,'#EF9A9A');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+20,y+2,3,6,'#42A5F5');pr(x+21,y+1,2,2,'#42A5F5');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case EM.COLD:</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x,y,24,20,'#BBDEFB');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+3,y+5,5,2,'#212121');pr(x+6,y+7,5,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+13,y+5,5,2,'#212121');pr(x+16,y+7,5,2,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pr(x+4,y+12,14,5,'#FFFFFF');pr(x+8,y+14,2,3,'#212121');pr(x+12,y+14,2,3,'#212121');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>break;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── RIGHT PANEL ───────────────────────────────────────────</p>
+<p class="p1">function drawPanel(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(500,0,300,500,'#0D0D1A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle='#FFD700';ctx.lineWidth=3;ctx.strokeRect(504,4,292,492);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.strokeRect(506,6,288,488);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(504,4,292,42,'#1A1A3E');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('LEMONADE STAND',650,10,6,'#FDD835','center');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(`DAY ${G.day}/30`,650,24,6,'#00E676','center');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510,48,280,8,'#1A1A3E');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dp=(G.day-1)/29;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=`hsl(${120-dp*120},100%,50%)`;ctx.fillRect(510,48,~~(280*dp),8);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510+~~(280*dp)-1,46,3,12,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510,60,280,22,'#0A0A1A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('CASH:',516,64,6,'#9E9E9E');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const mc=G.money&lt;5?'#F44336':G.money&gt;=20?'#00E676':'#FDD835';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(fmt$(G.money),786,64,7,mc,'right');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510,84,280,2,'#1A237E');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.SETUP) drawSetup();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>else if(G.state===S.WEATHER) drawWeatherPanel();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>else if(G.state===S.BUSY||G.state===S.FF) drawBusyPanel();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>else if(G.state===S.SUMMARY) drawSummaryPanel();</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── SETUP PANEL ───────────────────────────────────────────</p>
+<p class="p1">function drawSetup(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let y=92;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('RECIPE',516,y,6,'#FDD835'); y+=16;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ings=[</p>
+<p class="p1"><span class="Apple-converted-space">    </span>{k:'lemons',l:'LEMONS',c:'#FDD835'},</p>
+<p class="p1"><span class="Apple-converted-space">    </span>{k:'sugar', l:'SUGAR', c:'#CE93D8'},</p>
+<p class="p1"><span class="Apple-converted-space">    </span>{k:'ice', <span class="Apple-converted-space">  </span>l:'ICE', <span class="Apple-converted-space">  </span>c:'#80DEEA'},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const ing of ings){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(ing.l,516,y,5,ing.c); pt(`$${ICOST[ing.k]}/u`,788,y,4,'#666','right');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>y+=11;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const sx=516,sw=190,sy2=y;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(sx,sy2,sw,9,'#1A1A3E');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const fw=(G.recipe[ing.k]/10)*sw;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillStyle=ing.c;ctx.fillRect(sx,sy2,~~fw,9);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(sx+~~fw-4,sy2-2,8,13,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(`${G.recipe[ing.k]}`,718,sy2,7,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.hz['sl_'+ing.k]={x:sx,y:sy2-4,w:sw,h:17,kind:'slider',key:ing.k};</p>
+<p class="p1"><span class="Apple-converted-space">    </span>y+=21;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const {q,gross}=quality(G.recipe);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const qc=gross?'#F44336':q&gt;0.7?'#00E676':q&gt;0.4?'#FDD835':'#FF6D00';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ql=gross?'AWFUL!':q&gt;0.7?'GREAT':q&gt;0.4?'GOOD':'MEH';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('TASTE:',516,y,5,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(580,y,126,9,'#1A1A3E');ctx.fillStyle=qc;ctx.fillRect(580,y,~~(q*126),9);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(ql,788,y,5,qc,'right');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>y+=18;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(`BATCH COST: $${batchCost(G.recipe).toFixed(2)}`,516,y,5,'#9E9E9E');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>y+=18;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510,y,280,2,'#1A237E');y+=8;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('PRICE/CUP:',516,y,6,'#FDD835');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(fmt$(G.price),788,y,7,'#00E676','right');y+=16;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const psx=516,psw=190,psy=y;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(psx,psy,psw,9,'#1A1A3E');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ppf=((G.price-0.25)/4.75)*psw;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#00E676';ctx.fillRect(psx,psy,~~ppf,9);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(psx+~~ppf-4,psy-2,8,13,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['sl_price']={x:psx,y:psy-4,w:psw,h:17,kind:'slider',key:'price'};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>y+=20;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.event){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(510,y,280,18,'#E65100');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(eventName(G.event),650,y+4,5,'#FFCC02','center');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>y+=22;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.history.length&gt;0){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const prev=G.history[G.history.length-1];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(510,y,280,2,'#1A237E');y+=6;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt('YESTERDAY:',516,y,5,'#9E9E9E');y+=14;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const pc=prev.profit&gt;=0?'#00E676':'#F44336';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(`CUPS:${prev.cups} PROFIT:${prev.profit&gt;=0?'+':''}$${Math.abs(prev.profit).toFixed(2)}`,516,y,5,pc);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>y+=14;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>btn(520,462,250,26,'START DAY '+G.day,'#00796B','#FCFCFC',8,'start');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['start']={x:520,y:462,w:250,h:26};</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── WEATHER PANEL ─────────────────────────────────────────</p>
+<p class="p1">function drawWeatherPanel(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const w=WEATHER[G.weather];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let y=92;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt("TODAY'S WEATHER",516,y,5,'#9E9E9E');y+=18;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="13px 'Press Start 2P'";ctx.fillStyle=w.gc;ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText(w.n.toUpperCase(),650,y);ctx.textAlign='left';y+=24;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dm=Math.round(w.d*100);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dc=dm&gt;150?'#00E676':dm&gt;80?'#FDD835':'#F44336';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('DEMAND:',516,y,6,'#FCFCFC');pt(dm+'%',788,y,7,dc,'right');y+=16;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(516,y,250,10,'#1A1A3E');ctx.fillStyle=dc;ctx.fillRect(516,y,~~Math.min(250,dm*1.25),10);y+=22;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.event){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(510,y,280,28,'#BF360C');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt('SPECIAL EVENT!',650,y+4,6,'#FDD835','center');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(eventName(G.event),650,y+16,5,'#FCFCFC','center');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>y+=34;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.history.length&gt;0){drawMiniGraph(516,y,270,70);y+=80;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>btn(520,462,250,26,'OPEN FOR BUSINESS','#1B5E20','#FCFCFC',7,'openBiz');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['openBiz']={x:520,y:462,w:250,h:26};</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── BUSINESS PANEL ────────────────────────────────────────</p>
+<p class="p1">function drawBusyPanel(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const w=WEATHER[G.weather];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let y=92;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('WEATHER:',516,y,5,'#9E9E9E');pt(w.n.toUpperCase(),788,y,5,w.gc,'right');y+=16;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510,y,280,2,'#1A237E');y+=8;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510,y,280,85,'#0A0A24');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('TODAY',650,y+4,6,'#FCFCFC','center');y+=20;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(`CUPS: ${G.cupsToday}`,520,y,6,'#80DEEA');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(`REV: $${G.revToday.toFixed(2)}`,520,y+16,6,'#00E676');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(`COST: $${G.costToday.toFixed(2)}`,520,y+32,6,'#EF9A9A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const pc=G.profToday&gt;=0?'#00E676':'#F44336';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const ps=(G.profToday&gt;=0?'+':'')+fmt$(G.profToday);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('PROFIT: '+ps,520,y+48,6,pc);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>y+=72;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt(`CUST: ${G.cIdx}/${G.customers.length}`,516,y,5,'#757575');y+=18;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.history.length&gt;0){drawMiniGraph(516,y,270,72);y+=82;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.event){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(510,y,280,16,'#BF360C');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(eventName(G.event),650,y+3,5,'#FCFCFC','center');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>y+=20;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>btn(510,436,132,24,'&gt;&gt; SKIP DAY','#E65100','#FCFCFC',6,'ff1');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['ff1']={x:510,y:436,w:132,h:24};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>btn(648,436,144,24,'&gt;&gt; SKIP ALL','#B71C1C','#FCFCFC',6,'ff2');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['ff2']={x:648,y:436,w:144,h:24};</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── SUMMARY PANEL ─────────────────────────────────────────</p>
+<p class="p1">function drawSummaryPanel(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const last=G.history[G.history.length-1];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let y=92;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('DAY '+G.day+' SUMMARY',650,y,6,'#FDD835','center');y+=20;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(510,y,280,98,'#0A0A24');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const rows=[</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['CUPS SOLD:',last.cups,'#80DEEA'],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['REVENUE:','$'+last.revenue.toFixed(2),'#00E676'],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['COSTS:','-$'+last.cost.toFixed(2),'#EF9A9A'],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['PROFIT:',(last.profit&gt;=0?'+':'')+fmt$(last.profit),last.profit&gt;=0?'#00E676':'#F44336'],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['TOTAL:',fmt$(G.money),G.money&gt;=20?'#00E676':G.money&gt;=0?'#FDD835':'#F44336'],</p>
+<p class="p1"><span class="Apple-converted-space">  </span>];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;rows.length;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(rows[i][0],516,y+6+i*18,5,'#9E9E9E');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(rows[i][1],786,y+6+i*18,5,rows[i][2],'right');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(last.event){pr(510,y+90,280,16,'#BF360C');pt(eventName(last.event),650,y+93,4,'#FCFCFC','center');}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>y+=104;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.history.length&gt;0){drawMiniGraph(516,y,270,72);y+=82;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.day&gt;=30){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>btn(520,462,250,26,'FINAL RESULTS','#F57F17','#0A0A0A',8,'next');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>btn(520,462,250,26,'NEXT DAY &gt;','#1B5E20','#FCFCFC',8,'next');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['next']={x:520,y:462,w:250,h:26};</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── MINI GRAPH ────────────────────────────────────────────</p>
+<p class="p1">function drawMiniGraph(x,y,w,h){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,w,h,'#060612');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle='#1A237E';ctx.lineWidth=1;ctx.strokeRect(x,y,w,h);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const hist=G.history;if(!hist.length)return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let mx2=Math.max(1,...hist.map(d=&gt;d.cumulativeProfit));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let mn=Math.min(0,...hist.map(d=&gt;d.cumulativeProfit));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const range=Math.max(1,mx2-mn);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const bw=(w-4)/30;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;hist.length;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const pct=(hist[i].cumulativeProfit-mn)/range;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const bh=pct*(h-4);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillStyle=hist[i].profit&gt;=0?'#2E7D32':'#B71C1C';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillRect(~~(x+2+i*bw),~~(y+h-bh-2),Math.max(1,~~(bw-1)),~~bh);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,w,10,'rgba(6,6,18,0.7)');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pt('EARNINGS',x+2,y+1,4,'#3949AB');</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── START SCREEN ──────────────────────────────────────────</p>
+<p class="p1">function drawStart(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const grad=ctx.createLinearGradient(0,0,0,500);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>grad.addColorStop(0,'#050510');grad.addColorStop(1,'#0A0A2A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=grad;ctx.fillRect(0,0,800,500);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;60;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const sx=(i*173+31)%800,sy=(i*257+47)%400;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.globalAlpha=Math.sin(G.frame*0.04+i)*0.4+0.5;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pr(sx,sy,2,2,'#FCFCFC');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.globalAlpha=1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const hue=(G.frame*1.5)%360;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle=`hsl(${hue},100%,55%)`;ctx.lineWidth=4;ctx.strokeRect(6,6,788,488);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle=`hsl(${(hue+180)%360},100%,55%)`;ctx.lineWidth=1;ctx.strokeRect(12,12,776,476);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const pulse=Math.sin(G.titleT*0.04)*4;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(80-pulse,50-pulse,640+pulse*2,110+pulse*2,'#0D0D2A');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle='#FDD835';ctx.lineWidth=3;ctx.strokeRect(82-pulse,52-pulse,636+pulse*2,106+pulse*2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="32px 'Press Start 2P'";ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FDD835';ctx.fillText('LEMONADE',400,65);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FFF176';ctx.fillText('STAND',400,106);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="8px 'Press Start 2P'";ctx.fillStyle='#CE93D8';ctx.fillText('8-BIT EDITION',400,148);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawBigLemon(120,95,G.frame);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawBigLemon(630,95,G.frame+50);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.save();ctx.translate(310,335);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(-150,-40,300,80,'#37474F');pr(-150,-15,300,15,'#BDBDBD');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(-150,-40,300,3,'#FDD835');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(-60,-30,120,10,'#6D4C41');pr(-60,-30,120,3,'#8D6E63');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(-58,-45,116,18,'#C62828');ctx.fillStyle='#FDD835';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;6;i++) ctx.fillRect(-58+i*19,-45,9,18);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(-64,-48,7,22,'#B71C1C');pr(57,-48,7,22,'#B71C1C');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(-20,-42,40,14,'#FDD835');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#1A1A1A';ctx.font="5px 'Press Start 2P'";ctx.textAlign='center';ctx.fillText('LEMONADE',0,-34);ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.restore();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(120,380,560,62,'#0A0A1A');ctx.strokeStyle='#1A237E';ctx.lineWidth=1;ctx.strokeRect(120,380,560,62);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="6px 'Press Start 2P'";ctx.fillStyle='#5C6BC0';ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('30 DAYS<span class="Apple-converted-space">  </span>•<span class="Apple-converted-space">  </span>7 WEATHER TYPES<span class="Apple-converted-space">  </span>•<span class="Apple-converted-space">  </span>RANDOM EVENTS',400,393);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('SET RECIPE &amp; PRICE TO MAXIMIZE PROFIT',400,406);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FDD835';ctx.fillText('STARTING BUDGET: $20.00',400,419);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#4CAF50';ctx.fillText('GOAL: EARN $75+ FOR GRADE A',400,432);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(~~(G.frame/28)%2===0){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.font="13px 'Press Start 2P'";ctx.fillStyle='#FFEE58';ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillText('PRESS START',400,460);ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['startGame']={x:150,y:440,w:500,h:50};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.titleT++;</p>
+<p class="p1">}</p>
+<p class="p1">function drawBigLemon(x,y,t){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const b=Math.sin(t*0.05)*6;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FDD835';ctx.fillRect(x-16,y+b-16,32,32);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FFF176';ctx.fillRect(x-12,y+b-12,24,24);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#FDD835';ctx.fillRect(x-5,y+b-5,10,10);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#F9A825';ctx.fillRect(x-6,y+b-20,12,6);ctx.fillRect(x-6,y+b+14,12,6);</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── WEATHER OVERLAY ───────────────────────────────────────</p>
+<p class="p1">function drawWeatherOverlay(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.weatherTimer++;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const a=Math.min(0.88,G.weatherTimer/25);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=`rgba(10,10,30,${a})`;ctx.fillRect(0,140,500,120);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const w=WEATHER[G.weather];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.save();ctx.globalAlpha=a;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="12px 'Press Start 2P'";ctx.fillStyle=w.gc;ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText(w.n.toUpperCase(),250,188);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="7px 'Press Start 2P'";ctx.fillStyle='#ECEFF1';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText("TODAY'S WEATHER",250,209);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dm=w.d&gt;=2?'AMAZING DEMAND!':w.d&gt;=1.5?'HIGH DEMAND':w.d&gt;=0.9?'NORMAL DEMAND':w.d&gt;=0.5?'LOW DEMAND':'VERY LOW DEMAND';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dc=w.d&gt;=1.5?'#00E676':w.d&gt;=0.9?'#FDD835':'#F44336';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=dc;ctx.fillText(dm,250,226);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.restore();ctx.textAlign='left';</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── FF FLASH ──────────────────────────────────────────────</p>
+<p class="p1">function drawFFFlash(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!G.ffFlash)return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const f=G.ffFlash, a=Math.min(1,f.t/15);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.save();ctx.globalAlpha=a;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,130,500,130,'#000011');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="18px 'Press Start 2P'";ctx.fillStyle='#FDD835';ctx.textAlign='center';ctx.fillText('DAY '+f.day,250,175);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const w=WEATHER[f.weather];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="9px 'Press Start 2P'";ctx.fillStyle=w.gc;ctx.fillText(w.n.toUpperCase(),250,200);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const pc=f.profit&gt;=0?'#00E676':'#F44336';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="13px 'Press Start 2P'";ctx.fillStyle=pc;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText((f.profit&gt;=0?'+':'')+fmt$(f.profit),250,225);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="7px 'Press Start 2P'";ctx.fillStyle='#80DEEA';ctx.fillText(f.cups+' CUPS',250,248);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.restore();ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>f.t--;if(f.t&lt;=0)G.ffFlash=null;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── GAME OVER ─────────────────────────────────────────────</p>
+<p class="p1">function drawGameOver(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,0,800,500,'#050510');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const hue=(G.frame*1.2)%360;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle=`hsl(${hue},100%,50%)`;ctx.lineWidth=3;ctx.strokeRect(4,4,792,492);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="22px 'Press Start 2P'";ctx.fillStyle='#FDD835';ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('30 DAYS COMPLETE!',400,35);ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const totalProfit=G.money-20;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=grade(totalProfit);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const gc={S:'#FDD835',A:'#00E676',B:'#42A5F5',C:'#FFA726',D:'#FF7043',F:'#F44336'}[g];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(60,60,580,240,'#0A0A1A');ctx.strokeStyle='#1A237E';ctx.lineWidth=1;ctx.strokeRect(60,60,580,240);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const stats=[</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['FINAL CASH:',fmt$(G.money),G.money&gt;=20?'#00E676':'#F44336'],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['TOTAL PROFIT:',(totalProfit&gt;=0?'+':'')+fmt$(totalProfit),totalProfit&gt;=0?'#00E676':'#F44336'],</p>
+<p class="p1"><span class="Apple-converted-space">    </span>['DAYS PLAYED:','30/30','#FCFCFC'],</p>
+<p class="p1"><span class="Apple-converted-space">  </span>];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.history.length){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const bd=G.history.reduce((a,b)=&gt;a.profit&gt;b.profit?a:b);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const wd=G.history.reduce((a,b)=&gt;a.profit&lt;b.profit?a:b);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>stats.push(['BEST DAY:','Day '+bd.day+' +$'+bd.profit.toFixed(2),'#00E676']);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>stats.push(['WORST DAY:','Day '+wd.day+' $'+wd.profit.toFixed(2),'#F44336']);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let sy=74;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const st of stats){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>pt(st[0],74,sy,7,'#9E9E9E');pt(st[1],500,sy,7,st[2],'right');sy+=22;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const gd={S:'LEGENDARY MOGUL!',A:'EXCELLENT!',B:'SOLID WORK!',C:'DECENT',D:'NEEDS WORK',F:'BETTER LUCK!'};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle=gc;ctx.font="9px 'Press Start 2P'";ctx.textAlign='center';ctx.fillText(gd[g],320,215);ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="72px 'Press Start 2P'";ctx.fillStyle=gc;ctx.textAlign='center';ctx.fillText(g,700,175);ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(totalProfit&gt;0) drawTrophy(680,250,gc); else drawTombstone(680,250);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawFullGraph(60,308,580,90);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>btn(300,418,200,30,'PLAY AGAIN','#00796B','#FCFCFC',8,'restart');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['restart']={x:300,y:418,w:200,h:30};</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── BANKRUPT ──────────────────────────────────────────────</p>
+<p class="p1">function drawBankrupt(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(0,0,800,500,'#1A0000');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.strokeStyle='#F44336';ctx.lineWidth=4;ctx.strokeRect(4,4,792,492);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="28px 'Press Start 2P'";ctx.fillStyle='#F44336';ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('BANKRUPT!',400,80);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.font="9px 'Press Start 2P'";ctx.fillStyle='#EF9A9A';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('YOU RAN OUT OF MONEY',400,130);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('ON DAY '+G.day,400,152);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#9E9E9E';ctx.font="7px 'Press Start 2P'";</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('FINAL CASH: '+fmt$(G.money),400,185);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('DAYS SURVIVED: '+(G.day-1)+'/30',400,204);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawTombstone(400,295);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#4A4A4A';ctx.font="5px 'Press Start 2P'";</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('TIP: SET PRICE &gt; INGREDIENT COST PER CUP!',400,390);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('TIP: WATCH THE TASTE METER BEFORE OPENING!',400,406);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>btn(300,438,200,30,'TRY AGAIN','#B71C1C','#FCFCFC',8,'restart');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.hz['restart']={x:300,y:438,w:200,h:30};</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawTrophy(x,y,c){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x-22,y-42,44,30,c);pr(x-28,y-46,56,8,c);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x-10,y-12,20,16,c);pr(x-28,y+4,56,10,c);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x-32,y-38,10,22,c);pr(x+22,y-38,10,22,c);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x-6,y-58,12,12,'#FDD835');pr(x-10,y-54,20,4,'#FDD835');</p>
+<p class="p1">}</p>
+<p class="p1">function drawTombstone(x,y){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x-28,y-45,56,60,'#757575');pr(x-24,y-68,48,28,'#616161');pr(x-20,y-80,40,18,'#757575');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillStyle='#9E9E9E';ctx.font="7px 'Press Start 2P'";ctx.textAlign='center';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.fillText('R.I.P',x,y-25);ctx.fillText('$$$',x,-5+y);ctx.textAlign='left';</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function drawFullGraph(x,y,w,h){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,w,h,'#060612');ctx.strokeStyle='#1A237E';ctx.lineWidth=1;ctx.strokeRect(x,y,w,h);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const hist=G.history;if(!hist.length)return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let mx2=Math.max(1,...hist.map(d=&gt;d.cumulativeProfit));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let mn=Math.min(0,...hist.map(d=&gt;d.cumulativeProfit));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const range=Math.max(1,mx2-mn);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const bw=(w-4)/30;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;hist.length;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const pct=(hist[i].cumulativeProfit-mn)/range;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const bh=pct*(h-12);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillStyle=hist[i].profit&gt;=0?'#2E7D32':'#B71C1C';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ctx.fillRect(~~(x+2+i*bw),~~(y+h-bh-2),Math.max(1,~~(bw-1)),~~bh);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if((i+1)%5===0){ctx.fillStyle='#424242';ctx.font="4px 'Press Start 2P'";ctx.textAlign='center';ctx.fillText(i+1,~~(x+2+i*bw+bw/2),y+h-6);}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.textAlign='left';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pr(x,y,w,10,'rgba(6,6,18,0.8)');pt('DAILY PROFIT HISTORY',x+2,y+1,4,'#3949AB');</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── MAIN DRAW ─────────────────────────────────────────────</p>
+<p class="p1">function draw(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ctx.clearRect(0,0,800,500);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.START){drawStart();return;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.GAMEOVER){drawGameOver();return;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.BANKRUPT){drawBankrupt();return;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawScene();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawSun();drawRainbow();drawClouds();drawRain();drawWind();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawStand();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const c of G.customers_active) drawCustomer(c);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.WEATHER) drawWeatherOverlay();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.FF) drawFFFlash();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>drawPanel();</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── UPDATE / GAME LOGIC ───────────────────────────────────</p>
+<p class="p1">let dayEnded=false;</p>
+<p class="p1">function update(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.frame++;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.BUSY){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.custTimer++;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.custTimer&gt;=G.custInterval &amp;&amp; G.cIdx&lt;G.customers.length){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const cdata=G.customers[G.cIdx];</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.customers_active.push({...cdata, x:-35,y:285,tx:120+rnd(-15,15),state:'walk',etimer:0,flip:false});</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(cdata.cups&gt;0){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>G.cupsToday+=cdata.cups;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>G.revToday+=cdata.cups*G.price+cdata.tip;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.cIdx++;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.custTimer=0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(let i=G.customers_active.length-1;i&gt;=0;i--){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const c=G.customers_active[i];</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(c.state==='walk'){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>c.x+=2;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(c.x&gt;=c.tx){c.state='react';c.etimer=55;}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>} else if(c.state==='react'){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>c.etimer--;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(c.etimer&lt;=0){c.state='leave';c.flip=true;}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>} else if(c.state==='leave'){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>c.x-=2;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(c.x&lt;-40) G.customers_active.splice(i,1);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(!dayEnded &amp;&amp; G.cIdx&gt;=G.customers.length &amp;&amp; G.customers_active.length===0){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>dayEnded=true;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>setTimeout(()=&gt;{endDay();dayEnded=false;},400);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function startDay(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.weather=pickWeather();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.event=pickEvent();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.customers=buildCustomers();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.cIdx=0; G.customers_active=[];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.cupsToday=0; G.revToday=0; G.costToday=0; G.profToday=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.custTimer=0; G.custInterval=55; G.weatherTimer=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.rainDrops=[]; G.rain=[];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.state=S.WEATHER;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>dayEnded=false;</p>
+<p class="p1">}</p>
+<p class="p1">function openBusiness(){G.state=S.BUSY;}</p>
+<p class="p1">let _endDayCalled=false;</p>
+<p class="p1">function endDay(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(_endDayCalled) return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state!==S.BUSY&amp;&amp;G.state!==S.FF) return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>_endDayCalled=true;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>setTimeout(()=&gt;{_endDayCalled=false;},200);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const batches=Math.max(1,Math.ceil(G.cupsToday/10));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.costToday=batches*batchCost(G.recipe);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.event==='HEALTH'&amp;&amp;quality(G.recipe).q&lt;0.4) G.costToday+=2.00;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.profToday=G.revToday-G.costToday;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.money+=G.profToday;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const prevCum=G.history.length?G.history[G.history.length-1].cumulativeProfit:0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.history.push({day:G.day,cups:G.cupsToday,revenue:G.revToday,cost:G.costToday,profit:G.profToday,cumulativeProfit:prevCum+G.profToday,weather:G.weather,event:G.event});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.customers_active=[];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.money&lt;0){G.state=S.BANKRUPT;return;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.state=S.SUMMARY;</p>
+<p class="p1">}</p>
+<p class="p1">function advanceDay(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.day&gt;=30){G.state=S.GAMEOVER;return;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.day++;G.state=S.SETUP;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function fastForwardDay(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=G.cIdx;i&lt;G.customers.length;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const c=G.customers[i];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(c.cups&gt;0){G.cupsToday+=c.cups;G.revToday+=c.cups*G.price+c.tip;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.cIdx=G.customers.length; G.customers_active=[];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>dayEnded=false; _endDayCalled=false;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>endDay();</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function fastForwardAll(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.ffRunning) return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.ffRunning=true;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=G.cIdx;i&lt;G.customers.length;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const c=G.customers[i];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(c.cups&gt;0){G.cupsToday+=c.cups;G.revToday+=c.cups*G.price+c.tip;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.cIdx=G.customers.length; G.customers_active=[];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>_endDayCalled=false;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.state=S.FF;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>endDay();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.BANKRUPT){G.ffRunning=false;return;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const runNext=()=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.day&gt;=30||G.state===S.BANKRUPT){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.ffRunning=false;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(G.state!==S.BANKRUPT) G.state=S.GAMEOVER;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.day++;G.state=S.FF;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.weather=pickWeather();G.event=pickEvent();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.customers=buildCustomers();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let tc=0,tr=0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(const c of G.customers){if(c.cups&gt;0){tc+=c.cups;tr+=c.cups*G.price+c.tip;}}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.cupsToday=tc;G.revToday=tr;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const batches=Math.max(1,Math.ceil(tc/10));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.costToday=batches*batchCost(G.recipe);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.event==='HEALTH'&amp;&amp;quality(G.recipe).q&lt;0.4) G.costToday+=2;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.profToday=G.revToday-G.costToday;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.money+=G.profToday;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const prevCum=G.history.length?G.history[G.history.length-1].cumulativeProfit:0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.history.push({day:G.day,cups:tc,revenue:tr,cost:G.costToday,profit:G.profToday,cumulativeProfit:prevCum+G.profToday,weather:G.weather,event:G.event});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.ffFlash={day:G.day,weather:G.weather,profit:G.profToday,cups:tc,t:22};</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.money&lt;0){G.ffRunning=false;G.state=S.BANKRUPT;return;}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>setTimeout(runNext,320);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>setTimeout(runNext,10);</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// ── INPUT ─────────────────────────────────────────────────</p>
+<p class="p1">C.addEventListener('mousemove',e=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const r=C.getBoundingClientRect();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.mouse.x=e.clientX-r.left; G.mouse.y=e.clientY-r.top;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.mouse.down&amp;&amp;G.mouse.drag) applyDrag(G.mouse.x);</p>
+<p class="p1">});</p>
+<p class="p1">C.addEventListener('mousedown',e=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.mouse.down=true;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const r=C.getBoundingClientRect();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const mx=e.clientX-r.left, my=e.clientY-r.top;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>handleClick(mx,my);</p>
+<p class="p1">});</p>
+<p class="p1">C.addEventListener('mouseup',()=&gt;{G.mouse.down=false;G.mouse.drag=null;});</p>
+<p class="p2"><br></p>
+<p class="p1">function applyDrag(mx){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const d=G.mouse.drag;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!d) return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(d.key==='price'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const pct=clamp((mx-516)/190,0,1);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.price=Math.round((0.25+pct*4.75)/0.25)*0.25;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.price=clamp(G.price,0.25,5.00);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const pct=clamp((mx-516)/190,0,1);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.recipe[d.key]=Math.max(1,Math.min(10,Math.round(pct*9+1)));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function handleClick(mx,my){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state===S.SETUP){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(const hk of Object.keys(G.hz)){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(hk.startsWith('sl_')){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const h=G.hz[hk];</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(mx&gt;=h.x&amp;&amp;mx&lt;=h.x+h.w&amp;&amp;my&gt;=h.y&amp;&amp;my&lt;=h.y+h.h){</p>
+<p class="p1"><span class="Apple-converted-space">          </span>G.mouse.drag={key:h.key};</p>
+<p class="p1"><span class="Apple-converted-space">          </span>applyDrag(mx);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const [id,h] of Object.entries(G.hz)){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(id.startsWith('sl_')) continue;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(mx&gt;=h.x&amp;&amp;mx&lt;=h.x+h.w&amp;&amp;my&gt;=h.y&amp;&amp;my&lt;=h.y+h.h){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>handleAction(id);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function handleAction(id){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>switch(id){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case 'startGame':</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.day=1;G.money=20;G.history=[];G.recipe={lemons:5,sugar:5,ice:5};G.price=1.00;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.state=S.SETUP;break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case 'start': startDay();break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case 'openBiz': openBusiness();break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case 'ff1': fastForwardDay();break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case 'ff2': fastForwardAll();break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case 'next': advanceDay();break;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>case 'restart': initGame();break;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">document.addEventListener('keydown',e=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(e.key==='Enter'||e.key===' '){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>e.preventDefault();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.state===S.START) handleAction('startGame');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(G.state===S.WEATHER) handleAction('openBiz');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(G.state===S.SUMMARY) handleAction('next');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(G.state===S.GAMEOVER||G.state===S.BANKRUPT) handleAction('restart');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">});</p>
+<p class="p2"><br></p>
+<p class="p1">// ── LOOP ──────────────────────────────────────────────────</p>
+<p class="p1">function loop(){requestAnimationFrame(loop);update();draw();}</p>
+<p class="p1">loop();</p>
+<p class="p1">&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>
