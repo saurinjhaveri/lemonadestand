@@ -1,0 +1,47 @@
+name: TourGuide
+options:
+  bundleIdPrefix: com.yourorg
+  deploymentTarget:
+    iOS: "15.2"
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    # Pull secrets in from the git-ignored xcconfig.
+    # Run: cp TourGuide/Config/Secrets.example.xcconfig TourGuide/Config/Secrets.xcconfig
+  configs:
+    Debug:
+      xcconfig: TourGuide/Config/Secrets.xcconfig
+    Release:
+      xcconfig: TourGuide/Config/Secrets.xcconfig
+
+targets:
+  TourGuide:
+    type: application
+    platform: iOS
+    sources:
+      - TourGuide
+    info:
+      path: TourGuide/Resources/Info.plist
+      properties:
+        # Surface build-setting secrets into the bundle for Config.swift.
+        OpenAIAPIKey: $(OPENAI_API_KEY)
+        GooglePlacesAPIKey: $(GOOGLE_PLACES_API_KEY)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yourorg.tourguide
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # DEVELOPMENT_TEAM: ABCDE12345   # <- set your Apple Team ID
+    # dependencies:
+    #   # TODO(meta-dat): uncomment once you have GitHub-gated SDK access.
+    #   - package: MetaWearablesDAT
+    #
+    # packages:
+    #   MetaWearablesDAT:
+    #     url: https://github.com/facebook/meta-wearables-dat-ios
+    #     from: 0.1.0   # confirm the actual published version

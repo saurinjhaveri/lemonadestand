@@ -1,0 +1,10 @@
+# Secrets — never commit real keys
+TourGuide/Config/Secrets.xcconfig
+
+# Xcode / build artifacts
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+build/
+.swiftpm/
+*.xcuserstate
