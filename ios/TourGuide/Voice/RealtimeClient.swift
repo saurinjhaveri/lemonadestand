@@ -15,6 +15,7 @@ final class RealtimeClient: NSObject {
 
     private let sampleRate: Double = 24_000
     private var task: URLSessionWebSocketTask?
+    private var urlSession: URLSession?
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var playbackFormat: AVAudioFormat!
@@ -24,17 +25,24 @@ final class RealtimeClient: NSObject {
 
     func connect() {
         onStateChange?(.connecting)
-        var request = URLRequest(url: URL(string:
-            "wss://api.openai.com/v1/realtime?model=\(Config.realtimeModel)")!)
+        guard Config.hasOpenAIKey else {
+            onStateChange?(.failed("No OpenAI API key in Secrets.xcconfig"))
+            return
+        }
+        let urlString = "wss://api.openai.com/v1/realtime?model=\(Config.realtimeModel)"
+        var request = URLRequest(url: URL(string: urlString)!)
         request.addValue("Bearer \(Config.openAIAPIKey)", forHTTPHeaderField: "Authorization")
         request.addValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
+        print("[Realtime] connecting model=\(Config.realtimeModel)")
 
-        let session = URLSession(configuration: .default)
+        // Retain the session (a deallocated session invalidates the task).
+        // Use a delegate so we can surface the real failure (HTTP status / close code).
+        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        urlSession = session
         task = session.webSocketTask(with: request)
         task?.resume()
         receiveLoop()
-        sendSessionUpdate()
-        onStateChange?(.connected)
+        // .connected / sendSessionUpdate happen in didOpenWithProtocol below.
     }
 
     func disconnect() {
@@ -175,6 +183,46 @@ final class RealtimeClient: NSObject {
         default:
             break
         }
+    }
+}
+
+// MARK: - URLSessionWebSocketDelegate (diagnostics + connection state)
+
+extension RealtimeClient: URLSessionWebSocketDelegate {
+    func urlSession(_ session: URLSession,
+                    webSocketTask: URLSessionWebSocketTask,
+                    didOpenWithProtocol protocol: String?) {
+        print("[Realtime] websocket open")
+        onStateChange?(.connected)
+        sendSessionUpdate()
+    }
+
+    func urlSession(_ session: URLSession,
+                    webSocketTask: URLSessionWebSocketTask,
+                    didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+                    reason: Data?) {
+        let text = reason.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        print("[Realtime] closed code=\(closeCode.rawValue) reason=\(text)")
+        onStateChange?(.failed("Closed \(closeCode.rawValue) \(text)"))
+    }
+
+    func urlSession(_ session: URLSession,
+                    task: URLSessionTask,
+                    didCompleteWithError error: Error?) {
+        let status = (task.response as? HTTPURLResponse)?.statusCode
+        if let status { print("[Realtime] HTTP status \(status)") }
+        guard let error else { return }
+        print("[Realtime] failed: \(error)")
+        let message = status.map { code in
+            switch code {
+            case 401: return "401 — bad/expired OpenAI key"
+            case 403: return "403 — key lacks Realtime access"
+            case 404: return "404 — model '\(Config.realtimeModel)' not found"
+            case 429: return "429 — rate limit / no credit"
+            default:  return "HTTP \(code)"
+            }
+        } ?? error.localizedDescription
+        onStateChange?(.failed(message))
     }
 }
 
