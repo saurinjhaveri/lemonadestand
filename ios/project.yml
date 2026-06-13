@@ -23,19 +23,24 @@ targets:
   TourGuide:
     type: application
     platform: iOS
-    # Apply the git-ignored secrets xcconfig (defines OPENAI_API_KEY etc.).
-    # Run once: cp TourGuide/Config/Secrets.example.xcconfig TourGuide/Config/Secrets.xcconfig
-    configFiles:
-      Debug: TourGuide/Config/Secrets.xcconfig
-      Release: TourGuide/Config/Secrets.xcconfig
     sources:
       - TourGuide
+    # Full Info.plist is generated from here so permissions can't be dropped.
+    # API keys are NOT here — they live in Secrets.plist (read by Config.swift).
     info:
       path: TourGuide/Resources/Info.plist
       properties:
-        # Surface build-setting secrets into the bundle for Config.swift.
-        OpenAIAPIKey: $(OPENAI_API_KEY)
-        GooglePlacesAPIKey: $(GOOGLE_PLACES_API_KEY)
+        CFBundleDisplayName: Tour Guide
+        NSMicrophoneUsageDescription: "Used to talk to your tour guide hands-free through your glasses."
+        NSLocationWhenInUseUsageDescription: "Used to identify nearby landmarks and tailor your tour to where you are."
+        NSCameraUsageDescription: "Used to capture what you are looking at so the guide can identify it."
+        NSBluetoothAlwaysUsageDescription: "Used to connect to your glasses for audio and capture."
+        UIBackgroundModes: [audio]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourorg.tourguide

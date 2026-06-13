@@ -41,8 +41,9 @@ is reproducible:
 ```bash
 brew install xcodegen
 cd ios
-cp TourGuide/Config/Secrets.example.xcconfig TourGuide/Config/Secrets.xcconfig
-# edit Secrets.xcconfig and add your keys
+# 1. Create your secrets file and add your keys (see below)
+cp TourGuide/Config/Secrets.example.plist TourGuide/Config/Secrets.plist
+# 2. Edit Secrets.plist, then generate AFTER the file exists so it gets bundled
 xcodegen generate
 open TourGuide.xcodeproj
 ```
@@ -52,11 +53,18 @@ Out of the box it uses `MockGlassesProvider`, so it runs in the simulator.
 
 ## Configuration / secrets
 
-Keys are read from `Secrets.xcconfig` (git-ignored) and surfaced via Info.plist
-into `Config.swift`:
+Keys live in `Secrets.plist` (git-ignored), read directly by `Config.swift`.
+Copy `Secrets.example.plist` → `Secrets.plist` and fill in:
 
-- `OPENAI_API_KEY` — required for Realtime voice.
-- `GOOGLE_PLACES_API_KEY` — for landmark grounding (used more in Phase 2).
+- `OpenAIAPIKey` — required for Realtime voice.
+- `GooglePlacesAPIKey` — for landmark grounding (used more in Phase 2).
+
+> Important: `Secrets.plist` is bundled as a resource, so after creating or
+> editing it you must re-run `xcodegen generate` (so it's added to the project),
+> then **Clean Build Folder** in Xcode before running.
+
+> For anything beyond personal testing, move these keys behind a backend so they
+> don't ship in the app (see plan §3).
 
 > For anything beyond personal testing, move these keys behind a backend so they
 > don't ship in the app (see plan §3).

@@ -1,30 +1,36 @@
 import Foundation
 
-/// App configuration, read from the bundle (populated by Secrets.xcconfig at build time).
+/// App configuration. API keys are read from `Secrets.plist` (git-ignored) which
+/// you create from `Secrets.example.plist`.
 ///
 /// For production, prefer fetching short-lived credentials from your own backend
 /// rather than shipping long-lived keys inside the app (see plan §3).
 enum Config {
-    static let openAIAPIKey: String = bundleValue("OpenAIAPIKey")
-    static let googlePlacesAPIKey: String = bundleValue("GooglePlacesAPIKey")
-
     /// OpenAI Realtime model. Update if you adopt a newer realtime model.
     static let realtimeModel = "gpt-realtime"
 
     /// OpenAI vision/reasoning model used by the brain (Phase 2).
     static let visionModel = "gpt-4o"
 
-    private static func bundleValue(_ key: String) -> String {
-        let value = Bundle.main.object(forInfoDictionaryKey: key) as? String ?? ""
-        if value.isEmpty {
-            // Don't crash the app — just warn. Features needing this key won't work.
-            print("⚠️ [Config] Missing \(key). Check Secrets.xcconfig.")
-        }
-        return value
-    }
+    static var openAIAPIKey: String { secrets["OpenAIAPIKey"] ?? "" }
+    static var googlePlacesAPIKey: String { secrets["GooglePlacesAPIKey"] ?? "" }
 
     /// True when the OpenAI key looks present (used to gate the voice feature).
     static var hasOpenAIKey: Bool {
         !openAIAPIKey.isEmpty && openAIAPIKey != "sk-your-openai-key"
     }
+
+    /// Loaded once from Secrets.plist in the app bundle.
+    private static let secrets: [String: String] = {
+        guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+              let dict = NSDictionary(contentsOf: url) as? [String: String] else {
+            print("⚠️ [Config] Secrets.plist not found in the bundle. " +
+                  "Copy Secrets.example.plist → Secrets.plist, fill in your keys, " +
+                  "then re-run `xcodegen generate`.")
+            return [:]
+        }
+        let masked = dict.mapValues { $0.isEmpty ? "(empty)" : "\($0.prefix(6))… len \($0.count)" }
+        print("[Config] loaded Secrets.plist: \(masked)")
+        return dict
+    }()
 }
