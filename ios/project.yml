@@ -9,16 +9,6 @@ configs:
   Debug: debug
   Release: release
 
-settings:
-  base:
-    # Pull secrets in from the git-ignored xcconfig.
-    # Run: cp TourGuide/Config/Secrets.example.xcconfig TourGuide/Config/Secrets.xcconfig
-  configs:
-    Debug:
-      xcconfig: TourGuide/Config/Secrets.xcconfig
-    Release:
-      xcconfig: TourGuide/Config/Secrets.xcconfig
-
 schemes:
   TourGuide:
     build:
@@ -33,6 +23,11 @@ targets:
   TourGuide:
     type: application
     platform: iOS
+    # Apply the git-ignored secrets xcconfig (defines OPENAI_API_KEY etc.).
+    # Run once: cp TourGuide/Config/Secrets.example.xcconfig TourGuide/Config/Secrets.xcconfig
+    configFiles:
+      Debug: TourGuide/Config/Secrets.xcconfig
+      Release: TourGuide/Config/Secrets.xcconfig
     sources:
       - TourGuide
     info:
