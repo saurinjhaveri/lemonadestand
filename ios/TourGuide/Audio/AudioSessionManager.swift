@@ -6,7 +6,7 @@ import AVFoundation
 /// We use `.playAndRecord` with Bluetooth options so the glasses' mics capture
 /// the wearer and the open-ear speakers play the guide's voice. This is the
 /// "audio in/out" half of the system and needs no Meta SDK.
-final class AudioSessionManager {
+final class AudioSessionManager: @unchecked Sendable {
     static let shared = AudioSessionManager()
     private init() {}
 

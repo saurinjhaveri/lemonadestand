@@ -34,7 +34,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourorg.tourguide
-        SWIFT_VERSION: "6.0"
+        SWIFT_VERSION: "5.0"   # Swift 5 language mode; adopt Swift 6 concurrency later
         TARGETED_DEVICE_FAMILY: "1,2"
         # DEVELOPMENT_TEAM: ABCDE12345   # <- set your Apple Team ID
     # dependencies:
