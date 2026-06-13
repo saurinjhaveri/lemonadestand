@@ -32,7 +32,8 @@ final class RealtimeClient: NSObject {
         let urlString = "wss://api.openai.com/v1/realtime?model=\(Config.realtimeModel)"
         var request = URLRequest(url: URL(string: urlString)!)
         request.addValue("Bearer \(Config.openAIAPIKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
+        // GA Realtime: no "OpenAI-Beta: realtime=v1" header (that selects the
+        // disabled beta shape). GA uses the nested session/audio event shapes below.
         print("[Realtime] connecting model=\(Config.realtimeModel)")
 
         // Retain the session (a deallocated session invalidates the task).
@@ -74,16 +75,25 @@ final class RealtimeClient: NSObject {
     // MARK: - Session config
 
     private func sendSessionUpdate() {
+        // GA shape: audio config is nested under session.audio.input/output,
+        // formats are objects, and modalities are "output_modalities".
         send([
             "type": "session.update",
             "session": [
+                "type": "realtime",
                 "instructions": instructions,
-                "modalities": ["audio", "text"],
-                "voice": "alloy",
-                "input_audio_format": "pcm16",
-                "output_audio_format": "pcm16",
-                "input_audio_transcription": ["model": "whisper-1"],
-                "turn_detection": NSNull()   // we drive turns via push-to-talk
+                "output_modalities": ["audio"],
+                "audio": [
+                    "input": [
+                        "format": ["type": "audio/pcm", "rate": 24000],
+                        "transcription": ["model": "whisper-1"],
+                        "turn_detection": NSNull()   // manual turns via push-to-talk
+                    ],
+                    "output": [
+                        "format": ["type": "audio/pcm", "rate": 24000],
+                        "voice": "alloy"
+                    ]
+                ]
             ]
         ])
     }
@@ -172,11 +182,13 @@ final class RealtimeClient: NSObject {
               let type = json["type"] as? String else { return }
 
         switch type {
-        case "response.audio.delta":
+        // GA names first, beta names kept as fallback.
+        case "response.output_audio.delta", "response.audio.delta":
             if let b64 = json["delta"] as? String, let pcm = Data(base64Encoded: b64) {
                 enqueuePlayback(pcm)
             }
-        case "response.audio_transcript.delta", "response.text.delta":
+        case "response.output_audio_transcript.delta", "response.output_text.delta",
+             "response.audio_transcript.delta", "response.text.delta":
             if let delta = json["delta"] as? String { onTranscript?(delta) }
         case "error":
             print("[Realtime] error event: \(json)")
