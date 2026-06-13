@@ -60,8 +60,17 @@ final class RealtimeClient: NSObject {
     func startListening() {
         guard !isRunning else { return }
         isRunning = true
-        startMicCapture()
-        startPlayback()
+        prepareEngineIfNeeded()   // attach + connect player BEFORE starting
+        installMicTap()
+        engine.prepare()
+        do {
+            if !engine.isRunning { try engine.start() }
+        } catch {
+            print("[Realtime] engine start failed: \(error)")
+            isRunning = false
+            return
+        }
+        if !player.isPlaying { player.play() }   // safe: graph is connected + running
     }
 
     func stopListening() {
@@ -98,10 +107,26 @@ final class RealtimeClient: NSObject {
         ])
     }
 
+    // MARK: - Engine graph setup
+
+    /// Attach + connect the playback node once, while the engine is stopped.
+    /// Building the graph before starting avoids the "player started in a
+    /// disconnected state" crash.
+    private func prepareEngineIfNeeded() {
+        guard playbackFormat == nil else { return }
+        playbackFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16, sampleRate: sampleRate, channels: 1, interleaved: true)
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: playbackFormat)
+        // Touch the input node so its format is realized before we tap it.
+        _ = engine.inputNode
+    }
+
     // MARK: - Mic capture → server
 
-    private func startMicCapture() {
+    private func installMicTap() {
         let input = engine.inputNode
+        input.removeTap(onBus: 0)
         let hwFormat = input.outputFormat(forBus: 0)
         guard let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatInt16, sampleRate: sampleRate, channels: 1, interleaved: true),
@@ -125,20 +150,6 @@ final class RealtimeClient: NSObject {
                 "audio": data.base64EncodedString()
             ])
         }
-        try? engine.start()
-    }
-
-    // MARK: - Playback of model audio
-
-    private func startPlayback() {
-        playbackFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16, sampleRate: sampleRate, channels: 1, interleaved: true)
-        if engine.attachedNodes.contains(player) == false {
-            engine.attach(player)
-            engine.connect(player, to: engine.mainMixerNode, format: playbackFormat)
-        }
-        if !engine.isRunning { try? engine.start() }
-        player.play()
     }
 
     private func enqueuePlayback(_ pcm16: Data) {
