@@ -19,6 +19,16 @@ settings:
     Release:
       xcconfig: TourGuide/Config/Secrets.xcconfig
 
+schemes:
+  TourGuide:
+    build:
+      targets:
+        TourGuide: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+
 targets:
   TourGuide:
     type: application
