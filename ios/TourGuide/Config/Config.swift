@@ -17,8 +17,14 @@ enum Config {
     private static func bundleValue(_ key: String) -> String {
         let value = Bundle.main.object(forInfoDictionaryKey: key) as? String ?? ""
         if value.isEmpty {
-            assertionFailure("Missing \(key). Did you create Secrets.xcconfig?")
+            // Don't crash the app — just warn. Features needing this key won't work.
+            print("⚠️ [Config] Missing \(key). Check Secrets.xcconfig.")
         }
         return value
+    }
+
+    /// True when the OpenAI key looks present (used to gate the voice feature).
+    static var hasOpenAIKey: Bool {
+        !openAIAPIKey.isEmpty && openAIAPIKey != "sk-your-openai-key"
     }
 }
