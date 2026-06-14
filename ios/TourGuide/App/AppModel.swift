@@ -11,6 +11,10 @@ final class AppModel: ObservableObject {
     @Published var transcript = ""
     @Published var lastNarration = ""
 
+    // Usage / cost tracking (OpenAI gives no balance API, so we meter spend).
+    @Published var sessionUsage = RealtimeUsage()
+    @Published var lifetimeCostUSD: Double = UserDefaults.standard.double(forKey: "lifetimeCostUSD")
+
     let location = LocationManager()
 
     // Phase 1 runs on the mock so it works in the simulator.
@@ -29,9 +33,25 @@ final class AppModel: ObservableObject {
         voice.onTranscript = { [weak self] delta in
             Task { @MainActor in self?.transcript += delta }
         }
+        voice.onUsage = { [weak self] usage in
+            Task { @MainActor in self?.updateUsage(usage) }
+        }
+    }
+
+    /// Track this session's usage and accumulate a persisted lifetime total.
+    private var lastSessionCost: Double = 0
+    private func updateUsage(_ usage: RealtimeUsage) {
+        sessionUsage = usage
+        // Add only the delta since the last report to the lifetime total.
+        let cost = usage.estimatedCostUSD
+        lifetimeCostUSD += max(0, cost - lastSessionCost)
+        lastSessionCost = cost
+        UserDefaults.standard.set(lifetimeCostUSD, forKey: "lifetimeCostUSD")
     }
 
     func startSession() async {
+        sessionUsage = RealtimeUsage()
+        lastSessionCost = 0
         location.start()
         do {
             try AudioSessionManager.shared.configureForVoiceChat()

@@ -12,6 +12,10 @@ final class RealtimeClient: NSObject {
     var instructions: String = TourGuidePersona.systemPrompt
     var onTranscript: ((String) -> Void)?
     var onStateChange: ((ConnectionState) -> Void)?
+    /// Called after each model response with cumulative usage for this session.
+    var onUsage: ((RealtimeUsage) -> Void)?
+
+    private var sessionUsage = RealtimeUsage()
 
     private let sampleRate: Double = 24_000
     private var task: URLSessionWebSocketTask?
@@ -25,6 +29,7 @@ final class RealtimeClient: NSObject {
 
     func connect() {
         onStateChange?(.connecting)
+        sessionUsage = RealtimeUsage()
         guard Config.hasOpenAIKey else {
             onStateChange?(.failed("No OpenAI API key in Secrets.xcconfig"))
             return
@@ -201,11 +206,32 @@ final class RealtimeClient: NSObject {
         case "response.output_audio_transcript.delta", "response.output_text.delta",
              "response.audio_transcript.delta", "response.text.delta":
             if let delta = json["delta"] as? String { onTranscript?(delta) }
+        case "response.done":
+            if let response = json["response"] as? [String: Any],
+               let usage = response["usage"] as? [String: Any] {
+                sessionUsage.add(parseUsage(usage))
+                onUsage?(sessionUsage)
+            }
         case "error":
             print("[Realtime] error event: \(json)")
         default:
             break
         }
+    }
+
+    /// Parse the `usage` object from a `response.done` event.
+    private func parseUsage(_ usage: [String: Any]) -> RealtimeUsage {
+        var result = RealtimeUsage()
+        if let input = usage["input_token_details"] as? [String: Any] {
+            result.inputTextTokens = input["text_tokens"] as? Int ?? 0
+            result.inputAudioTokens = input["audio_tokens"] as? Int ?? 0
+            result.inputCachedTokens = input["cached_tokens"] as? Int ?? 0
+        }
+        if let output = usage["output_token_details"] as? [String: Any] {
+            result.outputTextTokens = output["text_tokens"] as? Int ?? 0
+            result.outputAudioTokens = output["audio_tokens"] as? Int ?? 0
+        }
+        return result
     }
 }
 

@@ -47,6 +47,24 @@ struct ContentView: View {
                 } ?? "—")
                 .foregroundStyle(.secondary)
             }
+            Divider()
+            HStack {
+                Text("Cost (session)").bold()
+                Spacer()
+                Text(String(format: "~$%.4f · %d tok",
+                            model.sessionUsage.estimatedCostUSD,
+                            model.sessionUsage.totalTokens))
+                .foregroundStyle(.secondary)
+            }
+            HStack {
+                Text("Cost (lifetime)").bold()
+                Spacer()
+                Text(String(format: "~$%.3f", model.lifetimeCostUSD))
+                    .foregroundStyle(.secondary)
+            }
+            Text("Estimate only — check openai.com for true balance.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
         .padding()
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
