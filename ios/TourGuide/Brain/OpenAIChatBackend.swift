@@ -13,7 +13,8 @@ final class OpenAIChatBackend: ReasoningBackend {
     func generate(userText: String,
                   imageJPEG: Data?,
                   location: CLLocation?,
-                  candidates: [LandmarkCandidate]) async throws -> String {
+                  candidates: [LandmarkCandidate],
+                  history: [ChatTurn]) async throws -> GuideResult {
         guard Config.hasOpenAIKey else { throw ReasoningError.missingKey("OpenAIAPIKey") }
 
         var content: [[String: Any]] = [
@@ -25,12 +26,15 @@ final class OpenAIChatBackend: ReasoningBackend {
             content.append(["type": "image_url", "image_url": ["url": dataURL]])
         }
 
+        var messages: [[String: Any]] = [["role": "system", "content": TourPrompt.system]]
+        for turn in history {
+            messages.append(["role": turn.role.rawValue, "content": turn.text])
+        }
+        messages.append(["role": "user", "content": content])
+
         let body: [String: Any] = [
             "model": Config.openAIChatModel,
-            "messages": [
-                ["role": "system", "content": TourPrompt.system],
-                ["role": "user", "content": content]
-            ],
+            "messages": messages,
             "max_tokens": 400
         ]
 
@@ -51,6 +55,11 @@ final class OpenAIChatBackend: ReasoningBackend {
               let text = message["content"] as? String else {
             throw ReasoningError.badResponse
         }
-        return text
+        var usage = BrainUsage(provider: displayName, model: Config.openAIChatModel)
+        if let u = json["usage"] as? [String: Any] {
+            usage.inputTokens = u["prompt_tokens"] as? Int ?? 0
+            usage.outputTokens = u["completion_tokens"] as? Int ?? 0
+        }
+        return GuideResult(text: text, usage: usage)
     }
 }

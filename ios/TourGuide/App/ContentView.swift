@@ -84,20 +84,29 @@ struct ContentView: View {
             }
             Divider()
             HStack {
+                Text("Last turn").bold()
+                Spacer()
+                Text(model.lastTurn).foregroundStyle(.secondary)
+            }
+            HStack {
                 Text("Cost (session)").bold()
                 Spacer()
-                Text(String(format: "~$%.4f · %d tok",
-                            model.sessionUsage.estimatedCostUSD,
-                            model.sessionUsage.totalTokens))
-                .foregroundStyle(.secondary)
+                Text(String(format: "~$%.4f", model.sessionTotalUSD)).foregroundStyle(.secondary)
             }
             HStack {
                 Text("Cost (lifetime)").bold()
                 Spacer()
-                Text(String(format: "~$%.3f", model.lifetimeCostUSD))
-                    .foregroundStyle(.secondary)
+                Text(String(format: "~$%.3f", model.lifetimeCostUSD)).foregroundStyle(.secondary)
             }
-            Text("Estimate only — check openai.com for true balance.")
+            if model.canShowBilling {
+                HStack {
+                    Button("Billed spend") { Task { await model.refreshBilling() } }
+                        .font(.caption)
+                    Spacer()
+                    Text(model.billedMonthText).foregroundStyle(.secondary)
+                }
+            }
+            Text("Estimates. True remaining balance isn't in OpenAI's API — see openai.com.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }

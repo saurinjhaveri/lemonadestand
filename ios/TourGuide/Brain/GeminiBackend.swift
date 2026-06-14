@@ -13,7 +13,8 @@ final class GeminiBackend: ReasoningBackend {
     func generate(userText: String,
                   imageJPEG: Data?,
                   location: CLLocation?,
-                  candidates: [LandmarkCandidate]) async throws -> String {
+                  candidates: [LandmarkCandidate],
+                  history: [ChatTurn]) async throws -> GuideResult {
         guard !Config.geminiAPIKey.isEmpty else { throw ReasoningError.missingKey("GeminiAPIKey") }
 
         var parts: [[String: Any]] = [
@@ -24,9 +25,16 @@ final class GeminiBackend: ReasoningBackend {
                                           "data": imageJPEG.base64EncodedString()]])
         }
 
+        // Prior turns as Gemini "contents" (assistant maps to role "model").
+        var contents: [[String: Any]] = history.map { turn in
+            ["role": turn.role == .user ? "user" : "model",
+             "parts": [["text": turn.text]]]
+        }
+        contents.append(["role": "user", "parts": parts])
+
         let body: [String: Any] = [
             "system_instruction": ["parts": [["text": TourPrompt.system]]],
-            "contents": [["role": "user", "parts": parts]]
+            "contents": contents
         ]
 
         let urlString = "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -44,11 +52,17 @@ final class GeminiBackend: ReasoningBackend {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let cands = json["candidates"] as? [[String: Any]],
               let content = cands.first?["content"] as? [String: Any],
-              let parts = content["parts"] as? [[String: Any]] else {
+              let resultParts = content["parts"] as? [[String: Any]] else {
             throw ReasoningError.badResponse
         }
-        let text = parts.compactMap { $0["text"] as? String }.joined()
+        let text = resultParts.compactMap { $0["text"] as? String }.joined()
         guard !text.isEmpty else { throw ReasoningError.badResponse }
-        return text
+
+        var usage = BrainUsage(provider: displayName, model: Config.geminiModel)
+        if let u = json["usageMetadata"] as? [String: Any] {
+            usage.inputTokens = u["promptTokenCount"] as? Int ?? 0
+            usage.outputTokens = u["candidatesTokenCount"] as? Int ?? 0
+        }
+        return GuideResult(text: text, usage: usage)
     }
 }

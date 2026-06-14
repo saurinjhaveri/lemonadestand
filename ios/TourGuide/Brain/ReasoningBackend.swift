@@ -9,7 +9,8 @@ protocol ReasoningBackend {
     func generate(userText: String,
                   imageJPEG: Data?,
                   location: CLLocation?,
-                  candidates: [LandmarkCandidate]) async throws -> String
+                  candidates: [LandmarkCandidate],
+                  history: [ChatTurn]) async throws -> GuideResult
 }
 
 enum ReasoningError: LocalizedError {

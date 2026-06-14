@@ -14,7 +14,8 @@ final class TourGuideService {
     func narrate(userText: String,
                  imageJPEG: Data?,
                  location: CLLocation?,
-                 backend: ReasoningBackend) async -> String {
+                 history: [ChatTurn],
+                 backend: ReasoningBackend) async -> GuideResult {
         var candidates: [LandmarkCandidate] = []
         if let location, !Config.googlePlacesAPIKey.isEmpty {
             candidates = (try? await places.nearbyLandmarks(at: location)) ?? []
@@ -22,9 +23,11 @@ final class TourGuideService {
         do {
             return try await backend.generate(
                 userText: userText, imageJPEG: imageJPEG,
-                location: location, candidates: candidates)
+                location: location, candidates: candidates, history: history)
         } catch {
-            return "Sorry — couldn't reach \(backend.displayName): \(error.localizedDescription)"
+            return GuideResult(
+                text: "Sorry — couldn't reach \(backend.displayName): \(error.localizedDescription)",
+                usage: BrainUsage())
         }
     }
 }

@@ -21,6 +21,8 @@ enum Config {
     static var openAIAPIKey: String { secrets["OpenAIAPIKey"] ?? "" }
     static var googlePlacesAPIKey: String { secrets["GooglePlacesAPIKey"] ?? "" }
     static var geminiAPIKey: String { secrets["GeminiAPIKey"] ?? "" }
+    /// Optional OpenAI Admin key (sk-admin-…) for the Costs API (real billed spend).
+    static var openAIAdminKey: String { secrets["OpenAIAdminKey"] ?? "" }
 
     /// True when the OpenAI key looks present (used to gate the voice feature).
     static var hasOpenAIKey: Bool {

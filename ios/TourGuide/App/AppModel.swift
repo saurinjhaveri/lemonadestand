@@ -20,9 +20,19 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(backendChoice.rawValue, forKey: "backendChoice") }
     }
 
-    // Usage / cost tracking (Realtime only; OpenAI gives no balance API).
-    @Published var sessionUsage = RealtimeUsage()
+    // Usage / cost tracking. OpenAI exposes no balance API; we meter spend and
+    // (optionally) show real billed spend via the Admin Costs API.
+    @Published var sessionUsage = RealtimeUsage()      // Realtime voice tokens
+    @Published var sessionBrainUSD: Double = 0         // Gemini/ChatGPT this session
+    @Published var lastTurn: String = "—"             // e.g. "Gemini · 1,240 tok · ~$0.0000"
     @Published var lifetimeCostUSD: Double = UserDefaults.standard.double(forKey: "lifetimeCostUSD")
+    @Published var billedMonthText: String = ""        // from Admin Costs API
+
+    /// Combined estimated cost this session (voice + brain).
+    var sessionTotalUSD: Double { sessionUsage.estimatedCostUSD + sessionBrainUSD }
+
+    private let billing = BillingClient()
+    private var history: [ChatTurn] = []   // conversation memory (Phase 3)
 
     let location = LocationManager()
 
@@ -70,9 +80,23 @@ final class AppModel: ObservableObject {
 
     // MARK: - Session
 
+    var canShowBilling: Bool { billing.hasAdminKey }
+
+    func refreshBilling() async {
+        guard billing.hasAdminKey else { return }
+        billedMonthText = "…"
+        if let usd = await billing.monthToDateUSD() {
+            billedMonthText = String(format: "$%.2f this month (billed)", usd)
+        } else {
+            billedMonthText = "unavailable"
+        }
+    }
+
     func startSession() async {
         sessionUsage = RealtimeUsage()
+        sessionBrainUSD = 0
         lastSessionCost = 0
+        history.removeAll()
         location.start()
         do {
             try AudioSessionManager.shared.configureForVoiceChat()
@@ -143,15 +167,32 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Run the brain pipeline and speak the answer (Lite/look-at-this path).
+    /// Run the brain pipeline, speak the answer, record cost + memory.
     private func respond(userText: String, imageJPEG: Data?) async {
         isThinking = true
         defer { isThinking = false }
-        let answer = await service.narrate(
+        let result = await service.narrate(
             userText: userText, imageJPEG: imageJPEG,
-            location: location.location, backend: backend)
-        lastNarration = answer
-        speaker.speak(answer)
+            location: location.location, history: history, backend: backend)
+
+        lastNarration = result.text
+        speaker.speak(result.text)
+
+        // Conversation memory: keep the last few turns for follow-ups.
+        let said = userText.isEmpty ? "(looked at something)" : userText
+        history.append(ChatTurn(role: .user, text: said))
+        history.append(ChatTurn(role: .assistant, text: result.text))
+        if history.count > 8 { history.removeFirst(history.count - 8) }
+
+        // Per-turn cost meter.
+        let cost = result.usage.estimatedCostUSD
+        sessionBrainUSD += cost
+        lifetimeCostUSD += cost
+        UserDefaults.standard.set(lifetimeCostUSD, forKey: "lifetimeCostUSD")
+        let tokens = result.usage.inputTokens + result.usage.outputTokens
+        lastTurn = String(format: "%@ · %d tok · ~$%.4f",
+                          result.usage.provider.isEmpty ? backend.displayName : result.usage.provider,
+                          tokens, cost)
     }
 
     // MARK: - Usage
