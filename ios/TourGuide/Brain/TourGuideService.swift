@@ -1,12 +1,9 @@
 import Foundation
 import CoreLocation
 
-/// Orchestrates the "look at this" flow: photo + GPS → candidate landmarks →
-/// (Phase 2) vision identification + narration.
-///
-/// Phase 1: captures the scene, fetches nearby landmark candidates, and logs
-/// them so the end-to-end pipeline is verifiable. The OpenAI vision call that
-/// turns this into spoken narration is added in Phase 2.
+/// Orchestrates a guide turn: GPS → nearby landmark candidates (Google Places)
+/// → chosen reasoning/vision backend → spoken-style narration. Used by both the
+/// voice answers (no image) and "Look at this" (with image).
 final class TourGuideService {
     private let places: PlacesClient
 
@@ -14,26 +11,20 @@ final class TourGuideService {
         self.places = places
     }
 
-    func narrate(scene: CapturedScene) async -> GuideNarration {
+    func narrate(userText: String,
+                 imageJPEG: Data?,
+                 location: CLLocation?,
+                 backend: ReasoningBackend) async -> String {
         var candidates: [LandmarkCandidate] = []
-        if let location = scene.location {
+        if let location, !Config.googlePlacesAPIKey.isEmpty {
             candidates = (try? await places.nearbyLandmarks(at: location)) ?? []
         }
-
-        let names = candidates.prefix(5).map(\.name).joined(separator: ", ")
-        print("[Brain] captured \(scene.imageData.count) bytes; nearby: [\(names)]")
-
-        // TODO(phase-2): call OpenAI Responses API (Config.visionModel) with the
-        // JPEG + candidate names + coordinates and the TourGuidePersona prompt,
-        // returning the model's identification + spoken narration. Optionally
-        // ground facts via Wikipedia/Wikidata.
-        let placeholder = candidates.first.map {
-            "You appear to be near \($0.name). (Vision narration arrives in Phase 2.)"
-        } ?? "Captured the scene. Add GPS + Phase 2 vision to identify it."
-
-        return GuideNarration(
-            identifiedName: candidates.first?.name,
-            spokenText: placeholder,
-            confident: false)
+        do {
+            return try await backend.generate(
+                userText: userText, imageJPEG: imageJPEG,
+                location: location, candidates: candidates)
+        } catch {
+            return "Sorry — couldn't reach \(backend.displayName): \(error.localizedDescription)"
+        }
     }
 }

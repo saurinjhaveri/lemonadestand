@@ -56,8 +56,21 @@ Out of the box it uses `MockGlassesProvider`, so it runs in the simulator.
 Keys live in `Secrets.plist` (git-ignored), read directly by `Config.swift`.
 Copy `Secrets.example.plist` → `Secrets.plist` and fill in:
 
-- `OpenAIAPIKey` — required for Realtime voice.
-- `GooglePlacesAPIKey` — for landmark grounding (used more in Phase 2).
+- `OpenAIAPIKey` — Realtime voice + the ChatGPT brain.
+- `GooglePlacesAPIKey` — landmark grounding by GPS.
+- `GeminiAPIKey` — the free Gemini brain (get one at https://aistudio.google.com/apikey).
+
+## Modes & brains
+
+- **Lite mode** (default): Apple on-device speech-to-text + text-to-speech (free)
+  + a text/vision brain. Cheap or free, turn-based.
+- **Realtime mode**: OpenAI speech-to-speech (premium, pricier).
+- **Brain** (used by Lite voice and "Look at this"): **Gemini** (free tier,
+  strong vision) or **ChatGPT** — toggle on the start screen.
+
+A live **cost meter** (Realtime token usage → estimated $) shows in the status
+card; edit the rates in `Models/Usage.swift`. OpenAI exposes no balance API, so
+check openai.com for your true remaining credit.
 
 > Important: `Secrets.plist` is bundled as a resource, so after creating or
 > editing it you must re-run `xcodegen generate` (so it's added to the project),

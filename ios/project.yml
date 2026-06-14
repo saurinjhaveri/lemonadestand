@@ -32,6 +32,7 @@ targets:
       properties:
         CFBundleDisplayName: Tour Guide
         NSMicrophoneUsageDescription: "Used to talk to your tour guide hands-free through your glasses."
+        NSSpeechRecognitionUsageDescription: "Used to understand what you ask your tour guide (on-device in Lite mode)."
         NSLocationWhenInUseUsageDescription: "Used to identify nearby landmarks and tailor your tour to where you are."
         NSCameraUsageDescription: "Used to capture what you are looking at so the guide can identify it."
         NSBluetoothAlwaysUsageDescription: "Used to connect to your glasses for audio and capture."

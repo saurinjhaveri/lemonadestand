@@ -2,16 +2,25 @@ import Foundation
 import Combine
 import CoreLocation
 
-/// Coordinates the glasses, location, voice, and brain for the UI.
+/// Coordinates the glasses, location, voice (Realtime or Lite), and brain.
 @MainActor
 final class AppModel: ObservableObject {
     @Published var glassesState: ConnectionState = .disconnected
     @Published var voiceState: ConnectionState = .disconnected
     @Published var isListening = false
+    @Published var isThinking = false
     @Published var transcript = ""
     @Published var lastNarration = ""
 
-    // Usage / cost tracking (OpenAI gives no balance API, so we meter spend).
+    // Mode + backend selection (persisted).
+    @Published var voiceMode: VoiceMode {
+        didSet { UserDefaults.standard.set(voiceMode.rawValue, forKey: "voiceMode") }
+    }
+    @Published var backendChoice: BackendChoice {
+        didSet { UserDefaults.standard.set(backendChoice.rawValue, forKey: "backendChoice") }
+    }
+
+    // Usage / cost tracking (Realtime only; OpenAI gives no balance API).
     @Published var sessionUsage = RealtimeUsage()
     @Published var lifetimeCostUSD: Double = UserDefaults.standard.double(forKey: "lifetimeCostUSD")
 
@@ -21,9 +30,18 @@ final class AppModel: ObservableObject {
     // Swap to MetaDATGlassesProvider() once the SDK is integrated.
     private let glasses: GlassesProvider = MockGlassesProvider()
     private let voice = RealtimeClient()
-    private let brain = TourGuideService()
+    private let speech = SpeechRecognizer()
+    private let speaker = Speaker()
+    private let service = TourGuideService()
+
+    private var backend: ReasoningBackend {
+        backendChoice == .gpt ? OpenAIChatBackend() : GeminiBackend()
+    }
 
     init() {
+        voiceMode = VoiceMode(rawValue: UserDefaults.standard.string(forKey: "voiceMode") ?? "") ?? .lite
+        backendChoice = BackendChoice(rawValue: UserDefaults.standard.string(forKey: "backendChoice") ?? "") ?? .gemini
+
         glasses.onConnectionStateChange = { [weak self] state in
             Task { @MainActor in self?.glassesState = state }
         }
@@ -38,16 +56,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Track this session's usage and accumulate a persisted lifetime total.
-    private var lastSessionCost: Double = 0
-    private func updateUsage(_ usage: RealtimeUsage) {
-        sessionUsage = usage
-        // Add only the delta since the last report to the lifetime total.
-        let cost = usage.estimatedCostUSD
-        lifetimeCostUSD += max(0, cost - lastSessionCost)
-        lastSessionCost = cost
-        UserDefaults.standard.set(lifetimeCostUSD, forKey: "lifetimeCostUSD")
-    }
+    // MARK: - Session
 
     func startSession() async {
         sessionUsage = RealtimeUsage()
@@ -56,43 +65,91 @@ final class AppModel: ObservableObject {
         do {
             try AudioSessionManager.shared.configureForVoiceChat()
             try await glasses.connect()
-            voice.connect()
         } catch {
             glassesState = .failed(error.localizedDescription)
+        }
+
+        switch voiceMode {
+        case .realtime:
+            voice.connect()
+        case .lite:
+            let ok = await speech.requestAuthorization()
+            voiceState = ok ? .connected : .failed("Speech/mic permission denied")
         }
     }
 
     func endSession() {
         voice.disconnect()
+        speaker.stop()
         glasses.disconnect()
         AudioSessionManager.shared.deactivate()
         location.stop()
+        isListening = false
+        voiceState = .disconnected
     }
 
-    // Push-to-talk: hold to speak, release to get the answer.
+    // MARK: - Push-to-talk
+
     func beginTalking() {
         transcript = ""
         isListening = true
-        voice.startListening()
+        switch voiceMode {
+        case .realtime:
+            voice.startListening()
+        case .lite:
+            speaker.stop()
+            do {
+                try speech.start { [weak self] partial in
+                    Task { @MainActor in self?.transcript = partial }
+                }
+            } catch {
+                transcript = "Speech error: \(error.localizedDescription)"
+                isListening = false
+            }
+        }
     }
 
     func endTalking() {
         isListening = false
-        voice.stopListening()
+        switch voiceMode {
+        case .realtime:
+            voice.stopListening()
+        case .lite:
+            let text = speech.finish()
+            Task { await self.respond(userText: text, imageJPEG: nil) }
+        }
     }
 
-    /// "Look at this" — capture a frame and run the brain pipeline.
+    // MARK: - "Look at this" (vision)
+
     func lookAtThis() async {
         do {
             let imageData = try await glasses.capturePhoto()
-            let scene = CapturedScene(
-                imageData: imageData,
-                location: location.location,
-                heading: location.heading)
-            let narration = await brain.narrate(scene: scene)
-            lastNarration = narration.spokenText
+            await respond(userText: "", imageJPEG: imageData)
         } catch {
             lastNarration = "Capture failed: \(error.localizedDescription)"
         }
+    }
+
+    /// Run the brain pipeline and speak the answer (Lite/look-at-this path).
+    private func respond(userText: String, imageJPEG: Data?) async {
+        isThinking = true
+        defer { isThinking = false }
+        let answer = await service.narrate(
+            userText: userText, imageJPEG: imageJPEG,
+            location: location.location, backend: backend)
+        lastNarration = answer
+        speaker.speak(answer)
+    }
+
+    // MARK: - Usage
+
+    private var lastSessionCost: Double = 0
+    private func updateUsage(_ usage: RealtimeUsage) {
+        sessionUsage = usage
+        let cost = usage.estimatedCostUSD
+        lifetimeCostUSD += max(0, cost - lastSessionCost)
+        lastSessionCost = cost
+        UserDefaults.standard.set(lifetimeCostUSD, forKey: "lifetimeCostUSD")
     }
 }

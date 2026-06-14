@@ -10,11 +10,17 @@ enum Config {
     /// "gpt-realtime" for the higher-quality (pricier) voice.
     static let realtimeModel = "gpt-realtime-mini"
 
-    /// OpenAI vision/reasoning model used by the brain (Phase 2).
-    static let visionModel = "gpt-4o"
+    /// ChatGPT text/vision model for Lite mode + "Look at this".
+    /// Full GPT-4o for best landmark accuracy; use "gpt-4o-mini" to cut cost.
+    static let openAIChatModel = "gpt-4o"
+
+    /// Gemini model for Lite mode + "Look at this". Update to the latest flash
+    /// model from https://ai.google.dev/gemini-api/docs/models if needed.
+    static let geminiModel = "gemini-2.0-flash"
 
     static var openAIAPIKey: String { secrets["OpenAIAPIKey"] ?? "" }
     static var googlePlacesAPIKey: String { secrets["GooglePlacesAPIKey"] ?? "" }
+    static var geminiAPIKey: String { secrets["GeminiAPIKey"] ?? "" }
 
     /// True when the OpenAI key looks present (used to gate the voice feature).
     static var hasOpenAIKey: Bool {

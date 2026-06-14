@@ -32,3 +32,19 @@ enum ConnectionState: Equatable {
     case connected
     case failed(String)
 }
+
+/// How the voice conversation runs.
+enum VoiceMode: String, CaseIterable, Identifiable {
+    case lite       // Apple on-device STT + TTS + text/vision backend (cheap/free)
+    case realtime   // OpenAI Realtime speech-to-speech (premium, pricier)
+    var id: String { rawValue }
+    var label: String { self == .lite ? "Lite (cheap)" : "Realtime (premium)" }
+}
+
+/// Which reasoning/vision backend powers Lite mode + "Look at this".
+enum BackendChoice: String, CaseIterable, Identifiable {
+    case gemini   // free tier, strong vision
+    case gpt      // ChatGPT, best landmark accuracy
+    var id: String { rawValue }
+    var label: String { self == .gemini ? "Gemini" : "ChatGPT" }
+}

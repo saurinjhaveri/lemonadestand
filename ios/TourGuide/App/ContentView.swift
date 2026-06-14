@@ -11,8 +11,13 @@ struct ContentView: View {
                 if isConnected {
                     pushToTalkButton
                     lookAtThisButton
+                    if model.isThinking {
+                        HStack(spacing: 8) { ProgressView(); Text("Thinking…") }
+                            .foregroundStyle(.secondary)
+                    }
                     transcriptView
                 } else {
+                    settingsCard
                     Button("Connect glasses & voice") {
                         Task { await model.startSession() }
                     }
@@ -33,6 +38,36 @@ struct ContentView: View {
 
     private var isConnected: Bool {
         model.glassesState == .connected
+    }
+
+    private var settingsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("Mode", selection: $model.voiceMode) {
+                ForEach(VoiceMode.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Picker("Brain", selection: $model.backendChoice) {
+                ForEach(BackendChoice.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Text(blurb)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var blurb: String {
+        let brain = model.backendChoice == .gemini ? "Gemini (free tier)" : "ChatGPT"
+        switch model.voiceMode {
+        case .lite:
+            return "Lite: on-device speech in/out + \(brain). Cheap/free, turn-based."
+        case .realtime:
+            return "Realtime: OpenAI speech-to-speech (premium, pricier). \(brain) still powers ‘Look at this’."
+        }
     }
 
     private var statusCard: some View {
