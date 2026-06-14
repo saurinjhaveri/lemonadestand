@@ -16,7 +16,7 @@ enum Config {
 
     /// Gemini model for Lite mode + "Look at this". Update to the latest flash
     /// model from https://ai.google.dev/gemini-api/docs/models if needed.
-    static let geminiModel = "gemini-2.0-flash"
+    static let geminiModel = "gemini-2.5-flash"
 
     static var openAIAPIKey: String { secrets["OpenAIAPIKey"] ?? "" }
     static var googlePlacesAPIKey: String { secrets["GooglePlacesAPIKey"] ?? "" }
