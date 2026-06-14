@@ -14,7 +14,8 @@ final class GeminiBackend: ReasoningBackend {
                   imageJPEG: Data?,
                   location: CLLocation?,
                   candidates: [LandmarkCandidate],
-                  history: [ChatTurn]) async throws -> GuideResult {
+                  history: [ChatTurn],
+                  memoryContext: String) async throws -> GuideResult {
         guard !Config.geminiAPIKey.isEmpty else { throw ReasoningError.missingKey("GeminiAPIKey") }
 
         var parts: [[String: Any]] = [
@@ -32,8 +33,10 @@ final class GeminiBackend: ReasoningBackend {
         }
         contents.append(["role": "user", "parts": parts])
 
+        let systemText = memoryContext.isEmpty ? TourPrompt.system
+            : TourPrompt.system + "\n\nWhat you remember about this traveler:\n" + memoryContext
         let body: [String: Any] = [
-            "system_instruction": ["parts": [["text": TourPrompt.system]]],
+            "system_instruction": ["parts": [["text": systemText]]],
             "contents": contents
         ]
 

@@ -11,23 +11,20 @@ final class TourGuideService {
         self.places = places
     }
 
+    /// Throws on backend failure so the caller can fall back to another brain.
     func narrate(userText: String,
                  imageJPEG: Data?,
                  location: CLLocation?,
                  history: [ChatTurn],
-                 backend: ReasoningBackend) async -> GuideResult {
+                 memoryContext: String,
+                 backend: ReasoningBackend) async throws -> GuideResult {
         var candidates: [LandmarkCandidate] = []
         if let location, !Config.googlePlacesAPIKey.isEmpty {
             candidates = (try? await places.nearbyLandmarks(at: location)) ?? []
         }
-        do {
-            return try await backend.generate(
-                userText: userText, imageJPEG: imageJPEG,
-                location: location, candidates: candidates, history: history)
-        } catch {
-            return GuideResult(
-                text: "Sorry — couldn't reach \(backend.displayName): \(error.localizedDescription)",
-                usage: BrainUsage())
-        }
+        return try await backend.generate(
+            userText: userText, imageJPEG: imageJPEG,
+            location: location, candidates: candidates,
+            history: history, memoryContext: memoryContext)
     }
 }

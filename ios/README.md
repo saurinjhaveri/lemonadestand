@@ -104,6 +104,20 @@ If a symbol name differs in your SDK version, the compiler points right at it.
 > Audio (mic/speaker) needs no SDK — the glasses are a standard Bluetooth headset,
 > routed by `AudioSessionManager`.
 
+## Memory (second brain)
+
+Persistent, layered memory behind a `MemoryStore` protocol:
+- **Local now** (`LocalMemoryStore`): on-device JSON in Documents — offline, free.
+  Records every turn (place, GPS, Q&A) + a preferences profile; recall (recent +
+  nearby + profile) is injected into each prompt.
+- **Obsidian journal** (`ObsidianExporter`): mirrors entries to
+  `Documents/TourGuideVault/<date>.md` with `[[place]]` backlinks and `#tags`.
+  File sharing is enabled, so open the folder in the Files app / point Obsidian at it.
+- **Later**: SwiftData and/or Supabase (Postgres + pgvector) adopt the same
+  protocol for cross-device sync + semantic recall.
+
+Brains also **auto-fall back** (Gemini↔ChatGPT) on failure such as 429 quota.
+
 ## Status
 
 - **Phase 1 (talking guide):** done — Realtime + Lite voice through the glasses.

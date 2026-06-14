@@ -14,7 +14,8 @@ final class OpenAIChatBackend: ReasoningBackend {
                   imageJPEG: Data?,
                   location: CLLocation?,
                   candidates: [LandmarkCandidate],
-                  history: [ChatTurn]) async throws -> GuideResult {
+                  history: [ChatTurn],
+                  memoryContext: String) async throws -> GuideResult {
         guard Config.hasOpenAIKey else { throw ReasoningError.missingKey("OpenAIAPIKey") }
 
         var content: [[String: Any]] = [
@@ -26,7 +27,9 @@ final class OpenAIChatBackend: ReasoningBackend {
             content.append(["type": "image_url", "image_url": ["url": dataURL]])
         }
 
-        var messages: [[String: Any]] = [["role": "system", "content": TourPrompt.system]]
+        let systemText = memoryContext.isEmpty ? TourPrompt.system
+            : TourPrompt.system + "\n\nWhat you remember about this traveler:\n" + memoryContext
+        var messages: [[String: Any]] = [["role": "system", "content": systemText]]
         for turn in history {
             messages.append(["role": turn.role.rawValue, "content": turn.text])
         }

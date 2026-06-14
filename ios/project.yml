@@ -31,6 +31,9 @@ targets:
       path: TourGuide/Resources/Info.plist
       properties:
         CFBundleDisplayName: Tour Guide
+        # Expose Documents/TourGuideVault in the Files app so Obsidian can open it.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         NSMicrophoneUsageDescription: "Used to talk to your tour guide hands-free through your glasses."
         NSSpeechRecognitionUsageDescription: "Used to understand what you ask your tour guide (on-device in Lite mode)."
         NSLocationWhenInUseUsageDescription: "Used to identify nearby landmarks and tailor your tour to where you are."

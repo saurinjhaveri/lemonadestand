@@ -10,7 +10,8 @@ protocol ReasoningBackend {
                   imageJPEG: Data?,
                   location: CLLocation?,
                   candidates: [LandmarkCandidate],
-                  history: [ChatTurn]) async throws -> GuideResult
+                  history: [ChatTurn],
+                  memoryContext: String) async throws -> GuideResult
 }
 
 enum ReasoningError: LocalizedError {

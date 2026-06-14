@@ -56,8 +56,17 @@ final class AppModel: ObservableObject {
     private let speaker = Speaker()
     private let service = TourGuideService()
 
-    private var backend: ReasoningBackend {
-        backendChoice == .gpt ? OpenAIChatBackend() : GeminiBackend()
+    // Persistent "second brain" (Phase 3). Local now; Supabase/SwiftData later.
+    private let memory: MemoryStore = LocalMemoryStore()
+    private let exporter = ObsidianExporter()
+    private let autoFallback = true   // Gemini↔ChatGPT on failure (e.g. 429)
+
+    private func makeBackend(_ choice: BackendChoice) -> ReasoningBackend {
+        choice == .gpt ? OpenAIChatBackend() : GeminiBackend()
+    }
+    private var backend: ReasoningBackend { makeBackend(backendChoice) }
+    private var fallbackBackend: ReasoningBackend {
+        makeBackend(backendChoice == .gpt ? .gemini : .gpt)
     }
 
     init() {
@@ -167,22 +176,65 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Run the brain pipeline, speak the answer, record cost + memory.
+    /// Run the brain pipeline (with memory recall + auto-fallback), speak the
+    /// answer, then record cost, conversation memory, and the journal entry.
     private func respond(userText: String, imageJPEG: Data?) async {
         isThinking = true
         defer { isThinking = false }
-        let result = await service.narrate(
-            userText: userText, imageJPEG: imageJPEG,
-            location: location.location, history: history, backend: backend)
+
+        let loc = location.location
+        let mem = await buildMemoryContext(near: loc)
+
+        // Try the selected brain; fall back to the other on failure (e.g. 429).
+        var result: GuideResult
+        var ok = true
+        do {
+            result = try await service.narrate(
+                userText: userText, imageJPEG: imageJPEG,
+                location: loc, history: history, memoryContext: mem, backend: backend)
+        } catch {
+            if autoFallback {
+                do {
+                    let alt = try await service.narrate(
+                        userText: userText, imageJPEG: imageJPEG,
+                        location: loc, history: history, memoryContext: mem, backend: fallbackBackend)
+                    result = GuideResult(text: "(via \(fallbackBackend.displayName)) " + alt.text,
+                                         usage: alt.usage)
+                } catch let e2 {
+                    ok = false
+                    result = GuideResult(
+                        text: "Both brains failed. \(backend.displayName): \(error.localizedDescription). "
+                            + "\(fallbackBackend.displayName): \(e2.localizedDescription)",
+                        usage: BrainUsage())
+                }
+            } else {
+                ok = false
+                result = GuideResult(
+                    text: "Sorry — \(backend.displayName) failed: \(error.localizedDescription)",
+                    usage: BrainUsage())
+            }
+        }
 
         lastNarration = result.text
         speaker.speak(result.text)
 
-        // Conversation memory: keep the last few turns for follow-ups.
+        // Short-term conversation memory for follow-ups.
         let said = userText.isEmpty ? "(looked at something)" : userText
         history.append(ChatTurn(role: .user, text: said))
         history.append(ChatTurn(role: .assistant, text: result.text))
         if history.count > 8 { history.removeFirst(history.count - 8) }
+
+        // Persist successful turns to the long-term store + Obsidian journal.
+        if ok {
+            let name = await placeName(for: loc)
+            let record = MemoryRecord(
+                placeName: name,
+                latitude: loc?.coordinate.latitude,
+                longitude: loc?.coordinate.longitude,
+                userText: said, guideText: result.text)
+            await memory.add(record)
+            await exporter.append(record)
+        }
 
         // Per-turn cost meter.
         let cost = result.usage.estimatedCostUSD
@@ -193,6 +245,29 @@ final class AppModel: ObservableObject {
         lastTurn = String(format: "%@ · %d tok · ~$%.4f",
                           result.usage.provider.isEmpty ? backend.displayName : result.usage.provider,
                           tokens, cost)
+    }
+
+    /// Build a compact memory context: profile + nearby + recent records.
+    private func buildMemoryContext(near loc: CLLocation?) async -> String {
+        var lines: [String] = []
+        let profile = await memory.profile()
+        if !profile.isEmpty { lines.append("Traveler profile: \(profile)") }
+        if let loc {
+            for r in await memory.near(loc, radius: 400, limit: 3) {
+                lines.append("Been near here before: \(r.placeName ?? "a spot") — "
+                             + String(r.guideText.prefix(120)))
+            }
+        }
+        for r in await memory.recent(limit: 3) {
+            lines.append("Recently you asked: \"\(r.userText)\"")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func placeName(for loc: CLLocation?) async -> String? {
+        guard let loc else { return nil }
+        let marks = try? await CLGeocoder().reverseGeocodeLocation(loc)
+        return marks?.first.flatMap { $0.name ?? $0.locality }
     }
 
     // MARK: - Usage
