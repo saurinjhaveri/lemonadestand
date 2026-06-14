@@ -36,23 +36,38 @@ targets:
         NSLocationWhenInUseUsageDescription: "Used to identify nearby landmarks and tailor your tour to where you are."
         NSCameraUsageDescription: "Used to capture what you are looking at so the guide can identify it."
         NSBluetoothAlwaysUsageDescription: "Used to connect to your glasses for audio and capture."
-        UIBackgroundModes: [audio]
+        UIBackgroundModes: [audio, bluetooth-peripheral, external-accessory]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # --- Meta Wearables Device Access Toolkit (needed only for real glasses) ---
+        UISupportedExternalAccessoryProtocols: [com.meta.ar.wearable]
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [tourguide]   # must match MWDAT.AppLinkURLScheme
+        MWDAT:
+          AppLinkURLScheme: tourguide
+          MetaAppID: "YOUR_META_APP_ID"       # from your Meta developer app registration
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourorg.tourguide
         SWIFT_VERSION: "5.0"   # Swift 5 language mode; adopt Swift 6 concurrency later
         TARGETED_DEVICE_FAMILY: "1,2"
         # DEVELOPMENT_TEAM: ABCDE12345   # <- set your Apple Team ID
-    # dependencies:
-    #   # TODO(meta-dat): uncomment once you have GitHub-gated SDK access.
-    #   - package: MetaWearablesDAT
+    # === Activate real glasses: uncomment when you have DAT access ===
+    # When these are uncommented, `canImport(MWDATCore)` becomes true and
+    # MetaDATGlassesProvider's real implementation switches on automatically.
+    # Also set MWDAT.MetaAppID above and DEVELOPMENT_TEAM below.
+    #   dependencies:
+    #     - package: MetaWearablesDAT
+    #       product: MWDATCore
+    #     - package: MetaWearablesDAT
+    #       product: MWDATCamera
+    #     - package: MetaWearablesDAT
+    #       product: MWDATMockDevice
     #
-    # packages:
+    # packages:   # (top-level key — move out of the target when you uncomment)
     #   MetaWearablesDAT:
     #     url: https://github.com/facebook/meta-wearables-dat-ios
-    #     from: 0.1.0   # confirm the actual published version
+    #     from: 0.7.0   # confirm the actual published version

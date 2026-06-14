@@ -79,26 +79,34 @@ check openai.com for your true remaining credit.
 > For anything beyond personal testing, move these keys behind a backend so they
 > don't ship in the app (see plan §3).
 
-> For anything beyond personal testing, move these keys behind a backend so they
-> don't ship in the app (see plan §3).
+## Activating the real Meta glasses camera
 
-## Integration points (swap mock → real)
+The real integration is already written in `Glasses/MetaDATGlassesProvider.swift`,
+guarded by `#if canImport(MWDATCore)`. It's a no-op stub until the SDK is present,
+then activates automatically. When your DAT preview access comes through:
 
-1. **Meta Wearables Device Access Toolkit**
-   - Apply for the developer preview, register the app, get GitHub-gated SDK access.
-   - Add the SPM package in `project.yml` (placeholder is there, commented).
-   - Implement the `TODO(meta-dat)` markers in
-     `Glasses/MetaDATGlassesProvider.swift` against the real SDK symbols.
-   - Switch `AppModel` to use `MetaDATGlassesProvider` instead of `MockGlassesProvider`.
+1. **Add the SPM package**: in Xcode, File → Add Package Dependencies →
+   `https://github.com/facebook/meta-wearables-dat-ios`; add products
+   `MWDATCore`, `MWDATCamera`, `MWDATMockDevice`. (Or uncomment the
+   `packages:`/`dependencies:` block in `project.yml` and re-run `xcodegen generate`.)
+2. **Set your Meta App ID**: in `project.yml`, replace `MWDAT.MetaAppID`
+   (`YOUR_META_APP_ID`) with the ID from your Meta developer app registration.
+   The URL scheme `tourguide` is already wired (`CFBundleURLTypes` + `onOpenURL`).
+3. **Set your Apple `DEVELOPMENT_TEAM`** in `project.yml` and run on a real iPhone
+   with the glasses paired to the Meta AI app.
+4. First launch will prompt the **Meta app linking** (registration) flow, then
+   ask for **camera permission** on the glasses.
 
-2. **Glasses audio** — confirmed via standard Bluetooth: pair the glasses, and
-   `AudioSessionManager` routes mic/speaker through them. No SDK needed.
+That's it — `AppModel.makeGlassesProvider()` picks the real provider once the SDK
+imports; on the Simulator it uses MockDeviceKit so the same code path is testable.
+If a symbol name differs in your SDK version, the compiler points right at it.
 
-3. **OpenAI Realtime model name** — `RealtimeClient` defaults to `gpt-realtime`;
-   update if you use a different model.
+> Audio (mic/speaker) needs no SDK — the glasses are a standard Bluetooth headset,
+> routed by `AudioSessionManager`.
 
-## Phase 1 milestone
+## Status
 
-Connect → push-to-talk → ask "what's worth seeing near me?" → hear a grounded
-spoken answer through the glasses. Photo capture is wired and verified (logs the
-captured frame); full **vision identification** is Phase 2.
+- **Phase 1 (talking guide):** done — Realtime + Lite voice through the glasses.
+- **Phase 2 (vision "Look at this"):** done — photo + GPS + Places → Gemini/ChatGPT.
+- **Real glasses camera:** code complete, behind `canImport(MWDATCore)`; activate
+  with the steps above when DAT access lands.

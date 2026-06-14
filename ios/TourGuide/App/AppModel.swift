@@ -26,10 +26,22 @@ final class AppModel: ObservableObject {
 
     let location = LocationManager()
 
-    // Phase 1 runs on the mock so it works in the simulator.
-    // Swap to MetaDATGlassesProvider() once the SDK is integrated.
-    private let glasses: GlassesProvider = MockGlassesProvider()
+    // Auto-selects the real Meta DAT provider once the SDK package is added;
+    // uses the mock until then. See makeGlassesProvider().
+    private let glasses: GlassesProvider = AppModel.makeGlassesProvider()
     private let voice = RealtimeClient()
+
+    private static func makeGlassesProvider() -> GlassesProvider {
+        #if canImport(MWDATCore)
+        #if targetEnvironment(simulator)
+        return MetaDATGlassesProvider(useMockDevice: true)   // simulated Ray-Ban
+        #else
+        return MetaDATGlassesProvider(useMockDevice: false)  // real glasses
+        #endif
+        #else
+        return MockGlassesProvider()                         // SDK not added yet
+        #endif
+    }
     private let speech = SpeechRecognizer()
     private let speaker = Speaker()
     private let service = TourGuideService()
