@@ -43,13 +43,13 @@ enum VoiceMode: String, CaseIterable, Identifiable {
 
 /// Which reasoning/vision backend powers Lite mode + "Look at this".
 enum BackendChoice: String, CaseIterable, Identifiable {
-    case deepseek  // OpenRouter DeepSeek — free, strong reasoning (text)
-    case gemini    // free tier, best free vision
-    case gpt       // ChatGPT, best landmark accuracy ($)
+    case openrouter // OpenRouter (GPT-5 Nano) — cheap, fast, strong (text)
+    case gemini     // free tier, best free vision
+    case gpt        // ChatGPT, best landmark accuracy ($)
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .deepseek: return "DeepSeek (free)"
+        case .openrouter: return "\(Config.openRouterDisplayName) (¢)"
         case .gemini: return "Gemini (free)"
         case .gpt: return "ChatGPT ($)"
         }

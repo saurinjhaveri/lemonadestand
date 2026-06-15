@@ -97,8 +97,8 @@ final class AppModel: ObservableObject {
             return OpenAICompatibleBackend(displayName: "ChatGPT", baseURL: Config.openAIBaseURL,
                                            apiKey: Config.openAIAPIKey, model: Config.openAIChatModel,
                                            supportsVision: true)
-        case .deepseek:
-            return OpenAICompatibleBackend(displayName: "DeepSeek", baseURL: Config.openRouterBaseURL,
+        case .openrouter:
+            return OpenAICompatibleBackend(displayName: Config.openRouterDisplayName, baseURL: Config.openRouterBaseURL,
                                            apiKey: Config.openRouterAPIKey, model: Config.openRouterModel,
                                            supportsVision: false)
         }
@@ -114,8 +114,8 @@ final class AppModel: ObservableObject {
             return OpenAICompatibleBackend(displayName: "ChatGPT", baseURL: Config.openAIBaseURL,
                                            apiKey: Config.openAIAPIKey, model: "gpt-4o-mini",
                                            supportsVision: true)
-        case .deepseek:
-            return OpenAICompatibleBackend(displayName: "DeepSeek", baseURL: Config.openRouterBaseURL,
+        case .openrouter:
+            return OpenAICompatibleBackend(displayName: "OpenRouter", baseURL: Config.openRouterBaseURL,
                                            apiKey: Config.openRouterAPIKey, model: Config.openRouterFallbackModel,
                                            supportsVision: false)
         }
@@ -123,7 +123,7 @@ final class AppModel: ObservableObject {
 
     init() {
         voiceMode = VoiceMode(rawValue: UserDefaults.standard.string(forKey: "voiceMode") ?? "") ?? .lite
-        backendChoice = BackendChoice(rawValue: UserDefaults.standard.string(forKey: "backendChoice") ?? "") ?? .deepseek
+        backendChoice = BackendChoice(rawValue: UserDefaults.standard.string(forKey: "backendChoice") ?? "") ?? .openrouter
         ttsEngine = TTSEngine(rawValue: UserDefaults.standard.string(forKey: "ttsEngine") ?? "") ?? .device
         guideLength = GuideLength(rawValue: UserDefaults.standard.string(forKey: "guideLength") ?? "") ?? .brief
         customInstructions = UserDefaults.standard.string(forKey: "customInstructions") ?? ""
@@ -271,7 +271,7 @@ final class AppModel: ObservableObject {
         let loc = location.location
         let mem = await buildDirectives(near: loc)
 
-        // If there's a photo but the chosen brain is text-only (e.g. DeepSeek R1),
+        // If there's a photo but the chosen brain is text-only (e.g. GPT-5 Nano),
         // route the image to Gemini (best free vision).
         let needsVision = imageJPEG != nil && !backend.supportsVision
         let primary: ReasoningBackend = needsVision ? GeminiBackend() : backend

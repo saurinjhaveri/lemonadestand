@@ -47,9 +47,13 @@ enum Pricing {
     /// ⚠️ Estimates — update from each provider's pricing page.
     static func brainCost(model: String, inputTokens: Int, outputTokens: Int) -> Double {
         let inRate: Double, outRate: Double
-        if model.contains("mini") {                 // gpt-4o-mini
+        if model.contains("nano") {                 // gpt-5-nano (OpenRouter)
+            (inRate, outRate) = (0.05, 0.40)
+        } else if model.contains("scout") || model.contains("llama") {
+            (inRate, outRate) = (0.10, 0.30)        // Llama 4 Scout (OpenRouter)
+        } else if model.contains("mini") {          // gpt-4o-mini
             (inRate, outRate) = (0.15, 0.60)
-        } else if model.hasPrefix("gpt-4o") || model.hasPrefix("gpt-5") {
+        } else if model.contains("gpt-4o") || model.contains("gpt-5") {
             (inRate, outRate) = (2.50, 10.00)       // full GPT-4o/5-class
         } else if model.contains("gemini") {
             (inRate, outRate) = (0.0, 0.0)          // free tier (set rates if you exceed it)
