@@ -78,11 +78,11 @@ enum GuideLength: String, CaseIterable, Identifiable {
     var directive: String {
         switch self {
         case .brief:
-            return "Answer in 1–2 short sentences (~30 words max). Only the single most interesting point. No preamble, no filler."
+            return "Body ~2 sentences: the most interesting fact or two, no filler. Then add your one-line follow-up offer."
         case .standard:
-            return "Answer in about 3 sentences (~60 words): one or two interesting points, then one quick practical tip."
+            return "Body ~3–4 sentences: a couple of genuinely interesting facts or a short story. Then add your one-line follow-up offer."
         case .detailed:
-            return "You may use ~5 sentences with a short story, but stay focused and skip trivia I didn't ask for."
+            return "Body ~5–6 sentences: a vivid short story plus a couple of facts, staying focused. Then add your one-line follow-up offer."
         }
     }
 }

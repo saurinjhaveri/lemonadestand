@@ -45,7 +45,12 @@ final class GeminiBackend: ReasoningBackend {
         let body: [String: Any] = [
             "system_instruction": ["parts": [["text": systemText]]],
             "contents": contents,
-            "generationConfig": ["maxOutputTokens": 400]   // cap rambling + save quota
+            // thinkingBudget 0 disables 2.5-flash's hidden reasoning, which was
+            // eating the token budget and truncating answers mid-sentence.
+            "generationConfig": [
+                "maxOutputTokens": 600,
+                "thinkingConfig": ["thinkingBudget": 0]
+            ]
         ]
 
         let urlString = "https://generativelanguage.googleapis.com/v1beta/models/"
