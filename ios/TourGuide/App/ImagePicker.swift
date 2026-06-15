@@ -5,12 +5,15 @@ import UIKit
 /// device, photo library in the simulator) so the full vision pipeline can be
 /// tested before the Meta DAT glasses are connected. Returns JPEG data.
 struct ImagePicker: UIViewControllerRepresentable {
+    var sourceType: UIImagePickerController.SourceType = .photoLibrary
     var onPick: (Data?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera)
-            ? .camera : .photoLibrary
+        // Fall back to the library if the requested source isn't available
+        // (e.g. .camera on the Simulator).
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType)
+            ? sourceType : .photoLibrary
         picker.delegate = context.coordinator
         return picker
     }

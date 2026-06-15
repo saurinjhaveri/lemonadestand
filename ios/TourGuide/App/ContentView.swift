@@ -1,9 +1,12 @@
 import SwiftUI
 import AVFoundation
+import UIKit
 
 struct ContentView: View {
     @EnvironmentObject var model: AppModel
     @State private var query = ""
+    @State private var showPicker = false
+    @State private var pickerSource: UIImagePickerController.SourceType = .photoLibrary
 
     var body: some View {
         NavigationStack {
@@ -44,9 +47,20 @@ struct ContentView: View {
                     Button("End") { model.endSession() }
                 }
             }
-            .sheet(isPresented: $model.isPickingImage) {
-                ImagePicker { data in model.usePickedImage(data) }
-                    .ignoresSafeArea()
+            .confirmationDialog("Add a photo to identify",
+                                isPresented: $model.isPickingImage, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Take Photo") { pickerSource = .camera; showPicker = true }
+                }
+                Button("Choose from Library") { pickerSource = .photoLibrary; showPicker = true }
+                Button("Cancel", role: .cancel) { }
+            }
+            .sheet(isPresented: $showPicker) {
+                ImagePicker(sourceType: pickerSource) { data in
+                    showPicker = false
+                    model.usePickedImage(data)
+                }
+                .ignoresSafeArea()
             }
         }
     }
