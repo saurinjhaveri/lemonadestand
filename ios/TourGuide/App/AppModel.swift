@@ -22,6 +22,14 @@ final class AppModel: ObservableObject {
     @Published var ttsEngine: TTSEngine {
         didSet { UserDefaults.standard.set(ttsEngine.rawValue, forKey: "ttsEngine") }
     }
+    /// Answer length / verbosity (anti-ramble).
+    @Published var guideLength: GuideLength {
+        didSet { UserDefaults.standard.set(guideLength.rawValue, forKey: "guideLength") }
+    }
+    /// Your standing instructions, always injected (like ChatGPT custom instructions).
+    @Published var customInstructions: String {
+        didSet { UserDefaults.standard.set(customInstructions, forKey: "customInstructions") }
+    }
     /// Selected on-device voice (identifier), e.g. Zoe (Premium).
     @Published var deviceVoiceID: String = "" {
         didSet {
@@ -85,14 +93,20 @@ final class AppModel: ObservableObject {
         choice == .gpt ? OpenAIChatBackend() : GeminiBackend()
     }
     private var backend: ReasoningBackend { makeBackend(backendChoice) }
+    /// Fallback stays on the SAME provider with a cheaper/lighter model, so a
+    /// free Gemini user never gets silently charged for a paid ChatGPT call.
     private var fallbackBackend: ReasoningBackend {
-        makeBackend(backendChoice == .gpt ? .gemini : .gpt)
+        backendChoice == .gpt
+            ? OpenAIChatBackend(model: "gpt-4o-mini")
+            : GeminiBackend(model: "gemini-2.5-flash-lite")
     }
 
     init() {
         voiceMode = VoiceMode(rawValue: UserDefaults.standard.string(forKey: "voiceMode") ?? "") ?? .lite
         backendChoice = BackendChoice(rawValue: UserDefaults.standard.string(forKey: "backendChoice") ?? "") ?? .gemini
         ttsEngine = TTSEngine(rawValue: UserDefaults.standard.string(forKey: "ttsEngine") ?? "") ?? .device
+        guideLength = GuideLength(rawValue: UserDefaults.standard.string(forKey: "guideLength") ?? "") ?? .brief
+        customInstructions = UserDefaults.standard.string(forKey: "customInstructions") ?? ""
         let savedVoice = UserDefaults.standard.string(forKey: "naturalVoice") ?? "alloy"
         naturalVoice = savedVoice
         naturalSpeaker.voice = savedVoice
@@ -235,7 +249,7 @@ final class AppModel: ObservableObject {
         defer { isThinking = false }
 
         let loc = location.location
-        let mem = await buildMemoryContext(near: loc)
+        let mem = await buildDirectives(near: loc)
 
         // Try the selected brain; fall back to the other on failure (e.g. 429).
         var result: GuideResult
@@ -299,9 +313,13 @@ final class AppModel: ObservableObject {
                           tokens, cost)
     }
 
-    /// Build a compact memory context: profile + nearby + recent records.
-    private func buildMemoryContext(near loc: CLLocation?) async -> String {
+    /// Build the standing directives + memory injected into every prompt:
+    /// length rule, your custom instructions, learned profile, nearby & recent.
+    private func buildDirectives(near loc: CLLocation?) async -> String {
         var lines: [String] = []
+        lines.append("Answer length: " + guideLength.directive)
+        let ci = customInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !ci.isEmpty { lines.append("User's standing instructions (obey these): \(ci)") }
         let profile = await memory.profile()
         if !profile.isEmpty { lines.append("Traveler profile: \(profile)") }
         if let loc {

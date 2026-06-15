@@ -58,6 +58,19 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
 
+            Picker("Length", selection: $model.guideLength) {
+                ForEach(GuideLength.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Custom instructions").font(.caption).foregroundStyle(.secondary)
+                TextField("e.g. be very brief, skip dates, focus on food & stories",
+                          text: $model.customInstructions, axis: .vertical)
+                    .lineLimit(1...3)
+                    .textFieldStyle(.roundedBorder)
+            }
+
             Picker("Voice", selection: $model.ttsEngine) {
                 ForEach(TTSEngine.allCases) { Text($0.label).tag($0) }
             }

@@ -6,9 +6,13 @@ import CoreLocation
 /// Secrets.plist (get one free at https://aistudio.google.com/apikey).
 final class GeminiBackend: ReasoningBackend {
     let displayName = "Gemini"
+    private let model: String
     private let session: URLSession
 
-    init(session: URLSession = .shared) { self.session = session }
+    init(model: String = Config.geminiModel, session: URLSession = .shared) {
+        self.model = model
+        self.session = session
+    }
 
     func generate(userText: String,
                   imageJPEG: Data?,
@@ -34,14 +38,15 @@ final class GeminiBackend: ReasoningBackend {
         contents.append(["role": "user", "parts": parts])
 
         let systemText = memoryContext.isEmpty ? TourPrompt.system
-            : TourPrompt.system + "\n\nWhat you remember about this traveler:\n" + memoryContext
+            : TourPrompt.system + "\n\nFollow these standing instructions and context:\n" + memoryContext
         let body: [String: Any] = [
             "system_instruction": ["parts": [["text": systemText]]],
-            "contents": contents
+            "contents": contents,
+            "generationConfig": ["maxOutputTokens": 400]   // cap rambling + save quota
         ]
 
         let urlString = "https://generativelanguage.googleapis.com/v1beta/models/"
-            + "\(Config.geminiModel):generateContent?key=\(Config.geminiAPIKey)"
+            + "\(model):generateContent?key=\(Config.geminiAPIKey)"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -61,7 +66,7 @@ final class GeminiBackend: ReasoningBackend {
         let text = resultParts.compactMap { $0["text"] as? String }.joined()
         guard !text.isEmpty else { throw ReasoningError.badResponse }
 
-        var usage = BrainUsage(provider: displayName, model: Config.geminiModel)
+        var usage = BrainUsage(provider: displayName, model: model)
         if let u = json["usageMetadata"] as? [String: Any] {
             usage.inputTokens = u["promptTokenCount"] as? Int ?? 0
             usage.outputTokens = u["candidatesTokenCount"] as? Int ?? 0

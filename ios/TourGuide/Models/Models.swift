@@ -35,24 +35,47 @@ enum ConnectionState: Equatable {
 
 /// How the voice conversation runs.
 enum VoiceMode: String, CaseIterable, Identifiable {
-    case lite       // Apple on-device STT + TTS + text/vision backend (cheap/free)
-    case realtime   // OpenAI Realtime speech-to-speech (premium, pricier)
+    case lite       // Apple on-device STT + TTS + text/vision backend (free with Gemini)
+    case realtime   // OpenAI Realtime speech-to-speech ($$)
     var id: String { rawValue }
-    var label: String { self == .lite ? "Lite (cheap)" : "Realtime (premium)" }
+    var label: String { self == .lite ? "Lite (free)" : "Realtime ($$)" }
 }
 
 /// Which reasoning/vision backend powers Lite mode + "Look at this".
 enum BackendChoice: String, CaseIterable, Identifiable {
     case gemini   // free tier, strong vision
-    case gpt      // ChatGPT, best landmark accuracy
+    case gpt      // ChatGPT, best landmark accuracy ($)
     var id: String { rawValue }
-    var label: String { self == .gemini ? "Gemini" : "ChatGPT" }
+    var label: String { self == .gemini ? "Gemini (free)" : "ChatGPT ($)" }
 }
 
 /// Which text-to-speech engine speaks answers (Lite mode + "Look at this").
 enum TTSEngine: String, CaseIterable, Identifiable {
     case device    // free, on-device
-    case natural   // OpenAI neural voice (small cost)
+    case natural   // OpenAI neural voice ($)
     var id: String { rawValue }
-    var label: String { self == .device ? "Device (free)" : "Natural (OpenAI)" }
+    var label: String { self == .device ? "Device (free)" : "Natural ($)" }
+}
+
+/// How long/verbose the guide's answers are.
+enum GuideLength: String, CaseIterable, Identifiable {
+    case brief, standard, detailed
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .brief: return "Brief"
+        case .standard: return "Standard"
+        case .detailed: return "Detailed"
+        }
+    }
+    var directive: String {
+        switch self {
+        case .brief:
+            return "Answer in 1–2 short sentences (~30 words max). Only the single most interesting point. No preamble, no filler."
+        case .standard:
+            return "Answer in about 3 sentences (~60 words): one or two interesting points, then one quick practical tip."
+        case .detailed:
+            return "You may use ~5 sentences with a short story, but stay focused and skip trivia I didn't ask for."
+        }
+    }
 }

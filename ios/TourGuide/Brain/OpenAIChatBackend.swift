@@ -6,9 +6,13 @@ import CoreLocation
 /// accuracy; switch to a mini model to cut cost).
 final class OpenAIChatBackend: ReasoningBackend {
     let displayName = "ChatGPT"
+    private let model: String
     private let session: URLSession
 
-    init(session: URLSession = .shared) { self.session = session }
+    init(model: String = Config.openAIChatModel, session: URLSession = .shared) {
+        self.model = model
+        self.session = session
+    }
 
     func generate(userText: String,
                   imageJPEG: Data?,
@@ -28,7 +32,7 @@ final class OpenAIChatBackend: ReasoningBackend {
         }
 
         let systemText = memoryContext.isEmpty ? TourPrompt.system
-            : TourPrompt.system + "\n\nWhat you remember about this traveler:\n" + memoryContext
+            : TourPrompt.system + "\n\nFollow these standing instructions and context:\n" + memoryContext
         var messages: [[String: Any]] = [["role": "system", "content": systemText]]
         for turn in history {
             messages.append(["role": turn.role.rawValue, "content": turn.text])
@@ -36,9 +40,9 @@ final class OpenAIChatBackend: ReasoningBackend {
         messages.append(["role": "user", "content": content])
 
         let body: [String: Any] = [
-            "model": Config.openAIChatModel,
+            "model": model,
             "messages": messages,
-            "max_tokens": 400
+            "max_tokens": 220   // cap to discourage rambling + save cost
         ]
 
         var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
@@ -58,7 +62,7 @@ final class OpenAIChatBackend: ReasoningBackend {
               let text = message["content"] as? String else {
             throw ReasoningError.badResponse
         }
-        var usage = BrainUsage(provider: displayName, model: Config.openAIChatModel)
+        var usage = BrainUsage(provider: displayName, model: model)
         if let u = json["usage"] as? [String: Any] {
             usage.inputTokens = u["prompt_tokens"] as? Int ?? 0
             usage.outputTokens = u["completion_tokens"] as? Int ?? 0
