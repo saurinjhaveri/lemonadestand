@@ -69,7 +69,7 @@ final class AppModel: ObservableObject {
 
     private let billing = BillingClient()
     private let photoWatcher = PhotoLibraryWatcher()
-    private var sessionActive = false
+    @Published private(set) var sessionActive = false
     private var history: [ChatTurn] = []   // conversation memory (Phase 3)
 
     let location = LocationManager()
