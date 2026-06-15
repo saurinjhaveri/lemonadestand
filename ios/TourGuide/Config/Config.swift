@@ -15,10 +15,13 @@ enum Config {
     static let openAIChatModel = "gpt-4o"
     static let openAIBaseURL = "https://api.openai.com/v1"
 
-    // OpenRouter: free, strong reasoning (DeepSeek R1). One endpoint, many models.
+    // OpenRouter: free, strong reasoning. One endpoint, many models.
+    // NOTE: OpenRouter rotates which models are free. If you see an HTTP 404
+    // "this model is unavailable for free", pick a current free slug from
+    // https://openrouter.ai/models?max_price=0 and paste it below.
     static let openRouterBaseURL = "https://openrouter.ai/api/v1"
-    static let openRouterModel = "deepseek/deepseek-r1:free"          // best free reasoning
-    static let openRouterFallbackModel = "deepseek/deepseek-chat-v3-0324:free"  // faster free fallback
+    static let openRouterModel = "deepseek/deepseek-v4-flash:free"            // free DeepSeek V4 (reasoning)
+    static let openRouterFallbackModel = "meta-llama/llama-3.3-70b-instruct:free"  // free, different provider
     static var openRouterAPIKey: String { secrets["OpenRouterAPIKey"] ?? "" }
 
     /// Gemini model for Lite mode + "Look at this". Update to the latest flash

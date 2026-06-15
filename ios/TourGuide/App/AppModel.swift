@@ -98,7 +98,7 @@ final class AppModel: ObservableObject {
                                            apiKey: Config.openAIAPIKey, model: Config.openAIChatModel,
                                            supportsVision: true)
         case .deepseek:
-            return OpenAICompatibleBackend(displayName: "DeepSeek R1", baseURL: Config.openRouterBaseURL,
+            return OpenAICompatibleBackend(displayName: "DeepSeek", baseURL: Config.openRouterBaseURL,
                                            apiKey: Config.openRouterAPIKey, model: Config.openRouterModel,
                                            supportsVision: false)
         }
