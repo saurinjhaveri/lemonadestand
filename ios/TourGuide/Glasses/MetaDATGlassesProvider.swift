@@ -29,9 +29,11 @@ final class MetaDATGlassesProvider: GlassesProvider {
     /// MockDeviceKit so the real code path is testable without hardware.
     private let useMockDevice: Bool
 
-    // Concrete SDK types per v0.x docs; adjust names if your SDK differs.
+    // Concrete SDK types (MWDAT iOS 0.7.0). NB: the camera stream type is
+    // `MWDATCamera.Stream` — must be qualified to avoid clashing with Foundation.Stream.
     private var session: DeviceSession?
-    private var stream: CameraStream?
+    private var stream: MWDATCamera.Stream?
+    private var photoToken: (any AnyListenerToken)?
     private var photoContinuation: CheckedContinuation<Data, Error>?
 
     init(useMockDevice: Bool = false) {
@@ -48,9 +50,9 @@ final class MetaDATGlassesProvider: GlassesProvider {
             let kit = MockDeviceKit.shared
             kit.enable()
             let mock = kit.pairRaybanMeta()
-            await mock.powerOn()
-            await mock.unfold()
-            await mock.don()
+            mock.powerOn()
+            mock.unfold()
+            mock.don()
         }
         #endif
 
@@ -76,7 +78,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
         // wearer takes with the glasses' hardware button. If we're awaiting an
         // app-requested capture, resume it; otherwise it's a hands-free capture
         // — forward it to onPhotoCaptured so the app narrates it automatically.
-        stream.photoDataPublisher.listen { [weak self] photoData in
+        photoToken = stream.photoDataPublisher.listen { [weak self] photoData in
             guard let self else { return }
             let data = photoData.data
             if let cont = self.photoContinuation {
@@ -94,9 +96,12 @@ final class MetaDATGlassesProvider: GlassesProvider {
     func disconnect() {
         let stream = self.stream
         let session = self.session
+        let token = self.photoToken
         self.stream = nil
         self.session = nil
+        self.photoToken = nil
         Task {
+            await token?.cancel()
             await stream?.stop()
             session?.stop()
         }
@@ -114,7 +119,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
     /// One-time linking with the Meta AI app. Opens the link flow if needed and
     /// returns once the app is registered. URL callback is handled in
     /// TourGuideApp via `.onOpenURL`.
-    private func ensureRegistered(_ wearables: Wearables) async throws {
+    private func ensureRegistered(_ wearables: any WearablesInterface) async throws {
         for await state in wearables.registrationStateStream() {
             switch state {
             case .registered:
