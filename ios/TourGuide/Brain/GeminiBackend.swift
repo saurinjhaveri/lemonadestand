@@ -42,16 +42,54 @@ final class GeminiBackend: ReasoningBackend {
 
         let systemText = memoryContext.isEmpty ? TourPrompt.system
             : TourPrompt.system + "\n\nFollow these standing instructions and context:\n" + memoryContext
-        let body: [String: Any] = [
-            "system_instruction": ["parts": [["text": systemText]]],
+
+        let (text, usage) = try await send(systemText: systemText, contents: contents, maxTokens: 600)
+        guard !text.isEmpty else { throw ReasoningError.badResponse }
+        return GuideResult(text: text, usage: usage)
+    }
+
+    /// Vision-only pass: identify what's in the photo and read any text, as plain
+    /// facts (no storytelling). Feeds a text-only reasoning brain (the "eyes →
+    /// brain" handoff) so e.g. GPT-5 Nano can write the narration.
+    func describeScene(imageJPEG: Data, userText: String,
+                       location: CLLocation?, candidates: [LandmarkCandidate]) async throws -> String {
+        guard !Config.geminiAPIKey.isEmpty else { throw ReasoningError.missingKey("GeminiAPIKey") }
+
+        let hints = TourPrompt.context(location: location, candidates: candidates)
+        let asked = userText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = """
+        You are the eyes of a tour-guide app. Look at the photo and report FACTS only — no storytelling:
+        1) Identify the specific landmark / place / artwork / object if recognizable, and name it.
+        2) Transcribe any readable text or signs.
+        3) Note key visual details (materials, style, surroundings).
+        Use the area/nearby hints ONLY to disambiguate — do not assume the user is at any listed place. \
+        If unsure, give the most likely identification and say you're unsure. 2–5 sentences.
+        \(asked.isEmpty ? "" : "The user also asked: \(asked)\n")Hints: \(hints)
+        """
+        let contents: [[String: Any]] = [[
+            "role": "user",
+            "parts": [["text": prompt],
+                      ["inline_data": ["mime_type": "image/jpeg", "data": imageJPEG.base64EncodedString()]]]
+        ]]
+        let (text, _) = try await send(systemText: nil, contents: contents, maxTokens: 350)
+        guard !text.isEmpty else { throw ReasoningError.badResponse }
+        return text
+    }
+
+    // MARK: - Shared request
+
+    private func send(systemText: String?, contents: [[String: Any]],
+                      maxTokens: Int) async throws -> (String, BrainUsage) {
+        var body: [String: Any] = [
             "contents": contents,
             // thinkingBudget 0 disables 2.5-flash's hidden reasoning, which was
             // eating the token budget and truncating answers mid-sentence.
             "generationConfig": [
-                "maxOutputTokens": 600,
+                "maxOutputTokens": maxTokens,
                 "thinkingConfig": ["thinkingBudget": 0]
             ]
         ]
+        if let systemText { body["system_instruction"] = ["parts": [["text": systemText]]] }
 
         let urlString = "https://generativelanguage.googleapis.com/v1beta/models/"
             + "\(model):generateContent?key=\(Config.geminiAPIKey)"
@@ -72,13 +110,12 @@ final class GeminiBackend: ReasoningBackend {
             throw ReasoningError.badResponse
         }
         let text = resultParts.compactMap { $0["text"] as? String }.joined()
-        guard !text.isEmpty else { throw ReasoningError.badResponse }
 
         var usage = BrainUsage(provider: displayName, model: model)
         if let u = json["usageMetadata"] as? [String: Any] {
             usage.inputTokens = u["promptTokenCount"] as? Int ?? 0
             usage.outputTokens = u["candidatesTokenCount"] as? Int ?? 0
         }
-        return GuideResult(text: text, usage: usage)
+        return (text, usage)
     }
 }

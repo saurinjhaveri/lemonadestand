@@ -67,7 +67,8 @@ Copy `Secrets.example.plist` → `Secrets.plist` and fill in:
   + a text/vision brain. Cheap or free, turn-based.
 - **Realtime mode**: OpenAI speech-to-speech (premium, pricier).
 - **Brain** (Lite voice + "Look at this"): **GPT-5 Nano** (cheap & fast via
-  OpenRouter, ~sub-cent/query — text-only, so photos auto-route to Gemini),
+  OpenRouter, ~sub-cent/query — text-only, so for photos Gemini identifies the
+  scene and hands that read to the brain to narrate ("eyes → brain")),
   **Gemini** (free, best vision), or **ChatGPT** ($, premium). Toggle on the
   start screen. Swap `openRouterModel` in `Config.swift` for any model at
   https://openrouter.ai/models (e.g. `meta-llama/llama-4-scout`,

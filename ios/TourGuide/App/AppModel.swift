@@ -339,12 +339,10 @@ final class AppModel: ObservableObject {
         let loc = resolvedLocation()   // GPS now, or last-known if signal dropped
         let mem = await buildDirectives(near: loc)
 
-        // If there's a photo but the chosen brain is text-only (e.g. GPT-5 Nano),
-        // route the image to Gemini (best free vision).
-        let needsVision = imageJPEG != nil && !backend.supportsVision
-        let primary: ReasoningBackend = needsVision ? GeminiBackend() : backend
-        let secondary: ReasoningBackend = needsVision
-            ? GeminiBackend(model: "gemini-2.5-flash-lite") : fallbackBackend
+        // The chosen brain writes the answer. If it can't see and there's a photo,
+        // TourGuideService runs the Gemini "eyes → brain" handoff automatically.
+        let primary: ReasoningBackend = backend
+        let secondary: ReasoningBackend = fallbackBackend
 
         // Try the primary brain; fall back to a free/lighter one on failure (e.g. 429).
         var result: GuideResult

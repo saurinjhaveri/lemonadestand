@@ -9,13 +9,16 @@ final class TourGuideService {
     private let places: PlacesClient
     private let wiki: WikipediaClient
     private let cache: LandmarkCache
+    private let vision: GeminiBackend   // "eyes" for text-only brains
 
     init(places: PlacesClient = PlacesClient(),
          wiki: WikipediaClient = WikipediaClient(),
-         cache: LandmarkCache = LandmarkCache()) {
+         cache: LandmarkCache = LandmarkCache(),
+         vision: GeminiBackend = GeminiBackend()) {
         self.places = places
         self.wiki = wiki
         self.cache = cache
+        self.vision = vision
     }
 
     /// Throws on backend failure so the caller can fall back to another brain.
@@ -53,10 +56,25 @@ final class TourGuideService {
                 radius: intent.isArea ? 1500 : 700,
                 limit: intent.isArea ? 5 : 3)) ?? []
         }
-        let grounding = TourPrompt.grounding(facts: facts, intent: intent)
+        var grounding = TourPrompt.grounding(facts: facts, intent: intent)
+
+        // "Eyes → brain" handoff: if there's a photo but the chosen brain can't
+        // see (e.g. GPT-5 Nano), let Gemini identify it, then hand that read to
+        // the brain as text so it writes the narration.
+        var imageForBackend = imageJPEG
+        if let imageJPEG, !backend.supportsVision {
+            if let read = try? await vision.describeScene(
+                imageJPEG: imageJPEG, userText: userText,
+                location: location, candidates: candidates) {
+                let block = "What the camera sees (from a vision model — treat as the "
+                    + "primary evidence of what the user is looking at):\n\(read)"
+                grounding = grounding.isEmpty ? block : grounding + "\n\n" + block
+                imageForBackend = nil   // brain works from the text read
+            }
+        }
 
         let result = try await backend.generate(
-            userText: userText, imageJPEG: imageJPEG,
+            userText: userText, imageJPEG: imageForBackend,
             location: location, candidates: candidates, grounding: grounding,
             history: history, memoryContext: memoryContext)
 
