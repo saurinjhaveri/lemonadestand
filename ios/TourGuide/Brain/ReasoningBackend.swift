@@ -32,11 +32,12 @@ enum ReasoningError: LocalizedError {
 enum TourPrompt {
     static var system: String { TourGuidePersona.systemPrompt }
 
-    /// Compact context line describing where the user is and what's nearby.
+    /// Compact context line. GPS is framed as APPROXIMATE area, and nearby places
+    /// as reference only — never as "where the user is."
     static func context(location: CLLocation?, candidates: [LandmarkCandidate]) -> String {
         var parts: [String] = []
         if let loc = location {
-            parts.append(String(format: "User GPS: %.5f, %.5f.",
+            parts.append(String(format: "Approximate area only (GPS, not the exact spot): %.5f, %.5f.",
                                 loc.coordinate.latitude, loc.coordinate.longitude))
         }
         if !candidates.isEmpty {
@@ -46,7 +47,8 @@ enum TourPrompt {
                 if let d = c.distanceMeters { s += " ~\(Int(d))m" }
                 return s
             }.joined(separator: "; ")
-            parts.append("Nearby landmarks from maps (prefer these when identifying): \(list).")
+            parts.append("Some places that exist somewhere in this broader area "
+                + "(reference only — do NOT assume the user is at any of these): \(list).")
         }
         return parts.isEmpty ? "(no location available)" : parts.joined(separator: " ")
     }
@@ -54,7 +56,7 @@ enum TourPrompt {
     /// The full user turn text (context + their question or a default).
     static func userText(_ userText: String, location: CLLocation?, candidates: [LandmarkCandidate]) -> String {
         let question = userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "Tell me about what I'm looking at: what it is, fun facts, and what's worth seeing vs. skipping here."
+            ? "Identify what's in this photo and tell me about it. If the photo doesn't clearly show a place/landmark/artwork, say you can't tell and ask me what I'm looking at — do NOT guess based on my GPS area."
             : userText
         return "\(context(location: location, candidates: candidates))\n\nUser: \(question)"
     }

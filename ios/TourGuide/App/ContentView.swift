@@ -1,7 +1,9 @@
 import SwiftUI
+import AVFoundation
 
 struct ContentView: View {
     @EnvironmentObject var model: AppModel
+    @State private var query = ""
 
     var body: some View {
         NavigationStack {
@@ -10,6 +12,7 @@ struct ContentView: View {
 
                 if isConnected {
                     pushToTalkButton
+                    askField
                     HStack(spacing: 12) {
                         lookAtThisButton
                         stopButton
@@ -60,7 +63,14 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
 
-            if model.ttsEngine == .natural {
+            if model.ttsEngine == .device {
+                Picker("Device voice", selection: $model.deviceVoiceID) {
+                    ForEach(DeviceSpeaker.availableVoices(), id: \.identifier) { v in
+                        Text("\(v.name) (\(qualityLabel(v.quality)))").tag(v.identifier)
+                    }
+                }
+                .pickerStyle(.menu)
+            } else {
                 Picker("Natural voice", selection: $model.naturalVoice) {
                     ForEach(AppModel.naturalVoices, id: \.self) { Text($0.capitalized).tag($0) }
                 }
@@ -162,6 +172,30 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, minHeight: 52)
         }
         .buttonStyle(.bordered)
+    }
+
+    private var askField: some View {
+        HStack {
+            TextField("Tell it where you are / what you see", text: $query)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(submitQuery)
+            Button("Ask", action: submitQuery)
+                .disabled(query.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+    }
+
+    private func submitQuery() {
+        let q = query
+        query = ""
+        model.ask(q)
+    }
+
+    private func qualityLabel(_ q: AVSpeechSynthesisVoice.Quality) -> String {
+        switch q {
+        case .premium: return "Premium"
+        case .enhanced: return "Enhanced"
+        default: return "Default"
+        }
     }
 
     private var stopButton: some View {

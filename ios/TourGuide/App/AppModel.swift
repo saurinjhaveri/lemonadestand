@@ -22,6 +22,13 @@ final class AppModel: ObservableObject {
     @Published var ttsEngine: TTSEngine {
         didSet { UserDefaults.standard.set(ttsEngine.rawValue, forKey: "ttsEngine") }
     }
+    /// Selected on-device voice (identifier), e.g. Zoe (Premium).
+    @Published var deviceVoiceID: String = "" {
+        didSet {
+            deviceSpeaker.voiceIdentifier = deviceVoiceID.isEmpty ? nil : deviceVoiceID
+            UserDefaults.standard.set(deviceVoiceID, forKey: "deviceVoiceID")
+        }
+    }
     /// Voice name for the Natural (OpenAI) engine.
     @Published var naturalVoice: String {
         didSet {
@@ -89,6 +96,19 @@ final class AppModel: ObservableObject {
         let savedVoice = UserDefaults.standard.string(forKey: "naturalVoice") ?? "alloy"
         naturalVoice = savedVoice
         naturalSpeaker.voice = savedVoice
+
+        // Device voice: use the saved pick, else auto-prefer Zoe (Premium).
+        let savedDeviceVoice = UserDefaults.standard.string(forKey: "deviceVoiceID") ?? ""
+        if savedDeviceVoice.isEmpty {
+            let voices = DeviceSpeaker.availableVoices()
+            let pick = voices.first { $0.name.localizedCaseInsensitiveContains("Zoe") && $0.quality == .premium }
+                ?? voices.first { $0.name.localizedCaseInsensitiveContains("Zoe") }
+                ?? voices.first { $0.quality == .premium }
+            deviceVoiceID = pick?.identifier ?? ""
+        } else {
+            deviceVoiceID = savedDeviceVoice
+        }
+        deviceSpeaker.voiceIdentifier = deviceVoiceID.isEmpty ? nil : deviceVoiceID
 
         glasses.onConnectionStateChange = { [weak self] state in
             Task { @MainActor in self?.glassesState = state }
@@ -187,6 +207,14 @@ final class AppModel: ObservableObject {
             let text = speech.finish()
             Task { await self.respond(userText: text, imageJPEG: nil) }
         }
+    }
+
+    /// Typed prompt: tell the guide where you are / what you see.
+    func ask(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        transcript = t
+        Task { await respond(userText: t, imageJPEG: nil) }
     }
 
     // MARK: - "Look at this" (vision)
