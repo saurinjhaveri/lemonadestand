@@ -32,6 +32,14 @@ final class AppModel: ObservableObject {
     @Published var customInstructions: String {
         didSet { UserDefaults.standard.set(customInstructions, forKey: "customInstructions") }
     }
+    /// Auto-narrate new Camera Roll photos (how glasses captures reach the app
+    /// without the DAT SDK — they sync in via the Meta AI app).
+    @Published var autoNarratePhotos: Bool {
+        didSet {
+            UserDefaults.standard.set(autoNarratePhotos, forKey: "autoNarratePhotos")
+            Task { await applyPhotoWatcher() }
+        }
+    }
     /// Selected on-device voice (identifier), e.g. Zoe (Premium).
     @Published var deviceVoiceID: String = "" {
         didSet {
@@ -60,6 +68,8 @@ final class AppModel: ObservableObject {
     var sessionTotalUSD: Double { sessionUsage.estimatedCostUSD + sessionBrainUSD }
 
     private let billing = BillingClient()
+    private let photoWatcher = PhotoLibraryWatcher()
+    private var sessionActive = false
     private var history: [ChatTurn] = []   // conversation memory (Phase 3)
 
     let location = LocationManager()
@@ -129,6 +139,7 @@ final class AppModel: ObservableObject {
         ttsEngine = TTSEngine(rawValue: UserDefaults.standard.string(forKey: "ttsEngine") ?? "") ?? .device
         guideLength = GuideLength(rawValue: UserDefaults.standard.string(forKey: "guideLength") ?? "") ?? .brief
         customInstructions = UserDefaults.standard.string(forKey: "customInstructions") ?? ""
+        autoNarratePhotos = UserDefaults.standard.object(forKey: "autoNarratePhotos") as? Bool ?? true
         let savedVoice = UserDefaults.standard.string(forKey: "naturalVoice") ?? "alloy"
         naturalVoice = savedVoice
         naturalSpeaker.voice = savedVoice
@@ -152,6 +163,14 @@ final class AppModel: ObservableObject {
         // Wearer pressed the glasses' capture button → narrate it hands-free.
         // Ignore captures that land while we're still answering the previous one.
         glasses.onPhotoCaptured = { [weak self] data in
+            Task { @MainActor in
+                guard let self, !self.isThinking else { return }
+                await self.respond(userText: "", imageJPEG: data)
+            }
+        }
+        // Same hands-free path for glasses photos that arrive via the Camera Roll
+        // (the DAT-free bridge through the Meta AI app).
+        photoWatcher.onNewPhoto = { [weak self] data in
             Task { @MainActor in
                 guard let self, !self.isThinking else { return }
                 await self.respond(userText: "", imageJPEG: data)
@@ -187,6 +206,8 @@ final class AppModel: ObservableObject {
         sessionBrainUSD = 0
         lastSessionCost = 0
         history.removeAll()
+        sessionActive = true
+        await applyPhotoWatcher()
         location.start()
         do {
             try AudioSessionManager.shared.configureForVoiceChat()
@@ -217,8 +238,23 @@ final class AppModel: ObservableObject {
         glasses.disconnect()
         AudioSessionManager.shared.deactivate()
         location.stop()
+        sessionActive = false
+        photoWatcher.stop()
         isListening = false
         voiceState = .disconnected
+    }
+
+    /// Start/stop the Camera Roll watcher to match the toggle + session state.
+    @Published var photoWatchStatus = ""
+    private func applyPhotoWatcher() async {
+        if autoNarratePhotos && sessionActive {
+            let ok = await photoWatcher.start()
+            photoWatchStatus = ok ? "Watching Camera Roll for glasses photos"
+                                  : "Photo access denied — enable it in Settings"
+        } else {
+            photoWatcher.stop()
+            photoWatchStatus = ""
+        }
     }
 
     // MARK: - Push-to-talk

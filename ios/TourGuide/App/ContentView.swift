@@ -21,6 +21,11 @@ struct ContentView: View {
                         HStack(spacing: 8) { ProgressView(); Text("Thinking…") }
                             .foregroundStyle(.secondary)
                     }
+                    if !model.photoWatchStatus.isEmpty {
+                        Label(model.photoWatchStatus, systemImage: "photo.on.rectangle.angled")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     transcriptView
                 } else {
                     settingsCard
@@ -74,6 +79,11 @@ struct ContentView: View {
                     .lineLimit(1...3)
                     .textFieldStyle(.roundedBorder)
             }
+
+            Toggle("Auto-narrate new photos", isOn: $model.autoNarratePhotos)
+            Text("Glasses photos sync to your Camera Roll (via the Meta AI app); the guide narrates each new one automatically.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             Picker("Voice", selection: $model.ttsEngine) {
                 ForEach(TTSEngine.allCases) { Text($0.label).tag($0) }
