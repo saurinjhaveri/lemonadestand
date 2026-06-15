@@ -149,6 +149,14 @@ final class AppModel: ObservableObject {
         glasses.onConnectionStateChange = { [weak self] state in
             Task { @MainActor in self?.glassesState = state }
         }
+        // Wearer pressed the glasses' capture button → narrate it hands-free.
+        // Ignore captures that land while we're still answering the previous one.
+        glasses.onPhotoCaptured = { [weak self] data in
+            Task { @MainActor in
+                guard let self, !self.isThinking else { return }
+                await self.respond(userText: "", imageJPEG: data)
+            }
+        }
         voice.onStateChange = { [weak self] state in
             Task { @MainActor in self?.voiceState = state }
         }

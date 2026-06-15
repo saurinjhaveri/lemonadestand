@@ -23,6 +23,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
         didSet { onConnectionStateChange?(connectionState) }
     }
     var onConnectionStateChange: ((ConnectionState) -> Void)?
+    var onPhotoCaptured: ((Data) -> Void)?
 
     /// When true (e.g. on the Simulator), drives a simulated Ray-Ban via
     /// MockDeviceKit so the real code path is testable without hardware.
@@ -71,9 +72,19 @@ final class MetaDATGlassesProvider: GlassesProvider {
         guard let stream = try deviceSession.addStream(config: config) else {
             throw GlassesError.captureFailed
         }
+        // One publisher delivers BOTH app-requested captures and photos the
+        // wearer takes with the glasses' hardware button. If we're awaiting an
+        // app-requested capture, resume it; otherwise it's a hands-free capture
+        // — forward it to onPhotoCaptured so the app narrates it automatically.
         stream.photoDataPublisher.listen { [weak self] photoData in
-            self?.photoContinuation?.resume(returning: photoData.data)
-            self?.photoContinuation = nil
+            guard let self else { return }
+            let data = photoData.data
+            if let cont = self.photoContinuation {
+                self.photoContinuation = nil
+                cont.resume(returning: data)
+            } else {
+                DispatchQueue.main.async { self.onPhotoCaptured?(data) }
+            }
         }
         await stream.start()
         self.stream = stream
@@ -128,6 +139,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
         didSet { onConnectionStateChange?(connectionState) }
     }
     var onConnectionStateChange: ((ConnectionState) -> Void)?
+    var onPhotoCaptured: ((Data) -> Void)?
 
     init(useMockDevice: Bool = false) {}
 

@@ -7,6 +7,11 @@ protocol GlassesProvider: AnyObject {
     var connectionState: ConnectionState { get }
     var onConnectionStateChange: ((ConnectionState) -> Void)? { get set }
 
+    /// Fired when a photo arrives that the app did NOT explicitly request — i.e.
+    /// the wearer pressed the glasses' capture button. This is the hands-free
+    /// trigger that runs the tour-guide pipeline automatically.
+    var onPhotoCaptured: ((Data) -> Void)? { get set }
+
     func connect() async throws
     func disconnect()
 
@@ -27,6 +32,7 @@ final class MockGlassesProvider: GlassesProvider {
         didSet { onConnectionStateChange?(connectionState) }
     }
     var onConnectionStateChange: ((ConnectionState) -> Void)?
+    var onPhotoCaptured: ((Data) -> Void)?
 
     func connect() async throws {
         connectionState = .connecting
