@@ -25,15 +25,15 @@ targets:
     platform: iOS
     sources:
       - TourGuide
-    # Associated Domains for DAT's Universal Link app-linking handshake.
-    # NB: this capability requires the PAID Apple Developer Program — a free
-    # personal team will fail to sign on-device with this entitlement (Simulator
-    # builds are unaffected). Remove this block if you must do a free on-device build.
-    entitlements:
-      path: TourGuide/Resources/TourGuide.entitlements
-      properties:
-        com.apple.developer.associated-domains:
-          - applinks:saurinjhaveri.github.io
+    # === Associated Domains (DAT Universal Link) — PAID Apple program only ===
+    # A free personal team can't sign this entitlement, so it's disabled by
+    # default to keep Simulator + free on-device builds working. When you enroll
+    # in the paid Apple Developer Program for real glasses, uncomment this:
+    # entitlements:
+    #   path: TourGuide/Resources/TourGuide.entitlements
+    #   properties:
+    #     com.apple.developer.associated-domains:
+    #       - applinks:saurinjhaveri.github.io
     # Full Info.plist is generated from here so permissions can't be dropped.
     # API keys are NOT here — they live in Secrets.plist (read by Config.swift).
     info:
