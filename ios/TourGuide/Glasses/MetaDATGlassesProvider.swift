@@ -123,17 +123,23 @@ final class MetaDATGlassesProvider: GlassesProvider {
     /// returns once the app is registered. URL callback is handled in
     /// TourGuideApp via `.onOpenURL`.
     private func ensureRegistered(_ wearables: any WearablesInterface) async throws {
+        // Already registered (incl. the auto-registered mock device) → done.
+        if wearables.registrationState == .registered { return }
         for await state in wearables.registrationStateStream() {
             switch state {
             case .registered:
                 return
             case .available:
+                // The Simulator's mock device auto-registers; don't kick off the
+                // real Meta-app linking flow (which would need a real Meta App ID).
+                if useMockDevice { continue }
                 do {
                     try await wearables.startRegistration()
                 } catch let e as RegistrationError {
                     throw GlassesError.setup(Self.explain(e))
                 }
             case .unavailable:
+                if useMockDevice { continue }
                 throw GlassesError.setup("Glasses registration unavailable. Make sure the Meta AI "
                     + "app is installed, your glasses are paired, and Developer Mode is enabled.")
             default:
