@@ -48,3 +48,11 @@ enum BackendChoice: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String { self == .gemini ? "Gemini" : "ChatGPT" }
 }
+
+/// Which text-to-speech engine speaks answers (Lite mode + "Look at this").
+enum TTSEngine: String, CaseIterable, Identifiable {
+    case device    // free, on-device
+    case natural   // OpenAI neural voice (small cost)
+    var id: String { rawValue }
+    var label: String { self == .device ? "Device (free)" : "Natural (OpenAI)" }
+}

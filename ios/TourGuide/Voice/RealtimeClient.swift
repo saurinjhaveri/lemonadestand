@@ -86,6 +86,12 @@ final class RealtimeClient: NSObject {
         send(["type": "response.create"])
     }
 
+    /// Barge-in: stop the model talking now (cancel response + drop queued audio).
+    func cancelResponse() {
+        send(["type": "response.cancel"])
+        player.stop()   // clears scheduled buffers; re-armed on next enqueue
+    }
+
     // MARK: - Session config
 
     private func sendSessionUpdate() {
@@ -166,6 +172,7 @@ final class RealtimeClient: NSObject {
         pcm16.withUnsafeBytes { raw in
             channel[0].update(from: raw.bindMemory(to: Int16.self).baseAddress!, count: Int(frameCount))
         }
+        if engine.isRunning && !player.isPlaying { player.play() }   // re-arm after cancel
         player.scheduleBuffer(buffer, completionHandler: nil)
     }
 

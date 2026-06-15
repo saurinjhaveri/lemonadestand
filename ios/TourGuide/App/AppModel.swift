@@ -19,6 +19,17 @@ final class AppModel: ObservableObject {
     @Published var backendChoice: BackendChoice {
         didSet { UserDefaults.standard.set(backendChoice.rawValue, forKey: "backendChoice") }
     }
+    @Published var ttsEngine: TTSEngine {
+        didSet { UserDefaults.standard.set(ttsEngine.rawValue, forKey: "ttsEngine") }
+    }
+    /// Voice name for the Natural (OpenAI) engine.
+    @Published var naturalVoice: String {
+        didSet {
+            naturalSpeaker.voice = naturalVoice
+            UserDefaults.standard.set(naturalVoice, forKey: "naturalVoice")
+        }
+    }
+    static let naturalVoices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
 
     // Usage / cost tracking. OpenAI exposes no balance API; we meter spend and
     // (optionally) show real billed spend via the Admin Costs API.
@@ -53,7 +64,9 @@ final class AppModel: ObservableObject {
         #endif
     }
     private let speech = SpeechRecognizer()
-    private let speaker = Speaker()
+    private let deviceSpeaker = DeviceSpeaker()
+    private let naturalSpeaker = OpenAITTSSpeaker()
+    private var activeSpeaker: GuideSpeaker { ttsEngine == .natural ? naturalSpeaker : deviceSpeaker }
     private let service = TourGuideService()
 
     // Persistent "second brain" (Phase 3). Local now; Supabase/SwiftData later.
@@ -72,6 +85,10 @@ final class AppModel: ObservableObject {
     init() {
         voiceMode = VoiceMode(rawValue: UserDefaults.standard.string(forKey: "voiceMode") ?? "") ?? .lite
         backendChoice = BackendChoice(rawValue: UserDefaults.standard.string(forKey: "backendChoice") ?? "") ?? .gemini
+        ttsEngine = TTSEngine(rawValue: UserDefaults.standard.string(forKey: "ttsEngine") ?? "") ?? .device
+        let savedVoice = UserDefaults.standard.string(forKey: "naturalVoice") ?? "alloy"
+        naturalVoice = savedVoice
+        naturalSpeaker.voice = savedVoice
 
         glasses.onConnectionStateChange = { [weak self] state in
             Task { @MainActor in self?.glassesState = state }
@@ -123,9 +140,16 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Shut the guide up immediately (button / barge-in), all engines.
+    func stopSpeaking() {
+        deviceSpeaker.stop()
+        naturalSpeaker.stop()
+        voice.cancelResponse()
+    }
+
     func endSession() {
         voice.disconnect()
-        speaker.stop()
+        stopSpeaking()
         glasses.disconnect()
         AudioSessionManager.shared.deactivate()
         location.stop()
@@ -142,7 +166,7 @@ final class AppModel: ObservableObject {
         case .realtime:
             voice.startListening()
         case .lite:
-            speaker.stop()
+            stopSpeaking()
             do {
                 try speech.start { [weak self] partial in
                     Task { @MainActor in self?.transcript = partial }
@@ -216,7 +240,7 @@ final class AppModel: ObservableObject {
         }
 
         lastNarration = result.text
-        speaker.speak(result.text)
+        activeSpeaker.speak(result.text)
 
         // Short-term conversation memory for follow-ups.
         let said = userText.isEmpty ? "(looked at something)" : userText

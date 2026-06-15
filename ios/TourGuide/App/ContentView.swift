@@ -10,7 +10,10 @@ struct ContentView: View {
 
                 if isConnected {
                     pushToTalkButton
-                    lookAtThisButton
+                    HStack(spacing: 12) {
+                        lookAtThisButton
+                        stopButton
+                    }
                     if model.isThinking {
                         HStack(spacing: 8) { ProgressView(); Text("Thinking…") }
                             .foregroundStyle(.secondary)
@@ -52,6 +55,18 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
 
+            Picker("Voice", selection: $model.ttsEngine) {
+                ForEach(TTSEngine.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            if model.ttsEngine == .natural {
+                Picker("Natural voice", selection: $model.naturalVoice) {
+                    ForEach(AppModel.naturalVoices, id: \.self) { Text($0.capitalized).tag($0) }
+                }
+                .pickerStyle(.menu)
+            }
+
             Text(blurb)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -62,11 +77,14 @@ struct ContentView: View {
 
     private var blurb: String {
         let brain = model.backendChoice == .gemini ? "Gemini (free tier)" : "ChatGPT"
+        let voice = model.ttsEngine == .natural
+            ? "Natural voice (OpenAI, small cost)."
+            : "Device voice — for a less robotic sound, install an Enhanced/Premium voice in Settings → Accessibility → Spoken Content → Voices."
         switch model.voiceMode {
         case .lite:
-            return "Lite: on-device speech in/out + \(brain). Cheap/free, turn-based."
+            return "Lite: on-device speech-to-text + \(brain). Cheap/free, turn-based. \(voice)"
         case .realtime:
-            return "Realtime: OpenAI speech-to-speech (premium, pricier). \(brain) still powers ‘Look at this’."
+            return "Realtime: OpenAI speech-to-speech (premium). \(brain) powers ‘Look at this’. (Voice setting applies to Lite/Look-at-this.)"
         }
     }
 
@@ -144,6 +162,17 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, minHeight: 52)
         }
         .buttonStyle(.bordered)
+    }
+
+    private var stopButton: some View {
+        Button(role: .destructive) {
+            model.stopSpeaking()
+        } label: {
+            Label("Stop", systemImage: "stop.fill")
+                .frame(maxWidth: .infinity, minHeight: 52)
+        }
+        .buttonStyle(.bordered)
+        .tint(.red)
     }
 
     private var transcriptView: some View {
