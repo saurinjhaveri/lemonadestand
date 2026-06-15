@@ -39,6 +39,10 @@ struct ContentView: View {
                     Button("End") { model.endSession() }
                 }
             }
+            .sheet(isPresented: $model.isPickingImage) {
+                ImagePicker { data in model.usePickedImage(data) }
+                    .ignoresSafeArea()
+            }
         }
     }
 

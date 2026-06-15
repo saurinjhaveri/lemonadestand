@@ -45,6 +45,13 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # iPad requires all four orientations (or full-screen); silence the warning.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSPhotoLibraryUsageDescription: "Used to pick a photo to identify when testing without glasses."
         # --- Meta Wearables Device Access Toolkit (needed only for real glasses) ---
         UISupportedExternalAccessoryProtocols: [com.meta.ar.wearable]
         CFBundleURLTypes:

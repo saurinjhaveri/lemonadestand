@@ -11,6 +11,8 @@ final class AppModel: ObservableObject {
     @Published var isThinking = false
     @Published var transcript = ""
     @Published var lastNarration = ""
+    /// True while the dev/sim photo picker is up (no real glasses camera).
+    @Published var isPickingImage = false
 
     // Mode + backend selection (persisted).
     @Published var voiceMode: VoiceMode {
@@ -253,13 +255,35 @@ final class AppModel: ObservableObject {
 
     // MARK: - "Look at this" (vision)
 
+    /// Real glasses camera is only available with the DAT SDK on a device — in
+    /// the simulator (or before DAT lands) we'd capture a mock placeholder, so
+    /// fall back to picking a real photo to test the vision pipeline.
+    private static let hasRealCamera: Bool = {
+        #if canImport(MWDATCore) && !targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }()
+
     func lookAtThis() async {
+        guard Self.hasRealCamera else {
+            isPickingImage = true   // dev/sim: pick a real photo instead of the mock frame
+            return
+        }
         do {
             let imageData = try await glasses.capturePhoto()
             await respond(userText: "", imageJPEG: imageData)
         } catch {
             lastNarration = "Capture failed: \(error.localizedDescription)"
         }
+    }
+
+    /// Called by the photo picker (dev/sim path) with the chosen image.
+    func usePickedImage(_ data: Data?) {
+        isPickingImage = false
+        guard let data else { return }
+        Task { await respond(userText: "", imageJPEG: data) }
     }
 
     /// Run the brain pipeline (with memory recall + auto-fallback), speak the

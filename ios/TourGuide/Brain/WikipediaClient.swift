@@ -60,7 +60,7 @@ final class WikipediaClient {
     /// Plain-text intro for each page id, truncated client-side. (We use
     /// `exintro` + `exlimit=max` because `exsentences` only returns one page.)
     private func extracts(pageIDs: [Int]) async throws -> [Int: String] {
-        let ids = pageIDs.map(String.init).joined(separator: "|")
+        let ids = pageIDs.map { String($0) }.joined(separator: "|")
         let r: ExtractResponse = try await get([
             .init(name: "action", value: "query"),
             .init(name: "prop", value: "extracts"),
