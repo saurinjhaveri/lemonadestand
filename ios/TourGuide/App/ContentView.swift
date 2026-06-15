@@ -66,7 +66,7 @@ struct ContentView: View {
             if model.ttsEngine == .device {
                 Picker("Device voice", selection: $model.deviceVoiceID) {
                     ForEach(DeviceSpeaker.availableVoices(), id: \.identifier) { v in
-                        Text("\(v.name) (\(qualityLabel(v.quality)))").tag(v.identifier)
+                        Text("\(v.name) (\(v.qualityLabel))").tag(v.identifier)
                     }
                 }
                 .pickerStyle(.menu)
@@ -188,14 +188,6 @@ struct ContentView: View {
         let q = query
         query = ""
         model.ask(q)
-    }
-
-    private func qualityLabel(_ q: AVSpeechSynthesisVoice.Quality) -> String {
-        switch q {
-        case .premium: return "Premium"
-        case .enhanced: return "Enhanced"
-        default: return "Default"
-        }
     }
 
     private var stopButton: some View {

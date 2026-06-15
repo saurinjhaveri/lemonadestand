@@ -45,6 +45,17 @@ final class DeviceSpeaker: NSObject, GuideSpeaker {
     }
 }
 
+extension AVSpeechSynthesisVoice {
+    /// Human-readable quality, e.g. "Premium" — used by the in-app picker.
+    var qualityLabel: String {
+        switch quality {
+        case .premium: return "Premium"
+        case .enhanced: return "Enhanced"
+        default: return "Default"
+        }
+    }
+}
+
 /// Natural neural voices via the OpenAI TTS API (small per-character cost).
 final class OpenAITTSSpeaker: NSObject, GuideSpeaker, AVAudioPlayerDelegate {
     var voice = "alloy"                 // alloy, echo, fable, onyx, nova, shimmer, …
