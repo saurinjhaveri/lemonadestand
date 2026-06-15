@@ -48,7 +48,10 @@ final class MetaDATGlassesProvider: GlassesProvider {
         #if canImport(MWDATMockDevice)
         if useMockDevice {
             let kit = MockDeviceKit.shared
-            kit.enable()
+            // initiallyRegistered + permissions granted so the simulator runs the
+            // full pipeline without a real Meta App ID / DAT approval.
+            kit.enable(config: MockDeviceKitConfig(initiallyRegistered: true,
+                                                   initialPermissionsGranted: true))
             let mock = kit.pairRaybanMeta()
             mock.powerOn()
             mock.unfold()
@@ -125,12 +128,34 @@ final class MetaDATGlassesProvider: GlassesProvider {
             case .registered:
                 return
             case .available:
-                try await wearables.startRegistration()
+                do {
+                    try await wearables.startRegistration()
+                } catch let e as RegistrationError {
+                    throw GlassesError.setup(Self.explain(e))
+                }
             case .unavailable:
-                throw GlassesError.notConnected
+                throw GlassesError.setup("Glasses registration unavailable. Make sure the Meta AI "
+                    + "app is installed, your glasses are paired, and Developer Mode is enabled.")
             default:
                 continue   // .registering — keep waiting
             }
+        }
+    }
+
+    private static func explain(_ e: RegistrationError) -> String {
+        switch e {
+        case .configurationInvalid:
+            return "Meta DAT config invalid — set a real MWDAT.MetaAppID in project.yml "
+                + "(it's still the YOUR_META_APP_ID placeholder) and make sure your bundle ID "
+                + "matches the app you registered in the Wearables Developer Center."
+        case .metaAINotInstalled:
+            return "The Meta AI app isn't installed. Install it and pair your glasses, then retry."
+        case .networkUnavailable:
+            return "No network — registration needs internet. Reconnect and retry."
+        case .alreadyRegistered:
+            return "Already registered (this shouldn't block you — try again)."
+        case .unknown:
+            return "Glasses registration failed (unknown error)."
         }
     }
 }

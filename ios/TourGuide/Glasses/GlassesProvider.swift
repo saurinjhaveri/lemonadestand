@@ -19,10 +19,20 @@ protocol GlassesProvider: AnyObject {
     func capturePhoto() async throws -> Data
 }
 
-enum GlassesError: Error {
+enum GlassesError: LocalizedError {
     case notConnected
     case captureFailed
     case sdkUnavailable
+    case setup(String)   // human-readable setup/registration problem
+
+    var errorDescription: String? {
+        switch self {
+        case .notConnected: return "Glasses not connected."
+        case .captureFailed: return "Photo capture failed."
+        case .sdkUnavailable: return "Meta DAT SDK not added. Add the SPM package to enable real glasses."
+        case .setup(let message): return message
+        }
+    }
 }
 
 /// Simulator/dev stand-in. Returns a generated placeholder image so the full
