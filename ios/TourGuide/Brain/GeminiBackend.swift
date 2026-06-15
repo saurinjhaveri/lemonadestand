@@ -6,6 +6,7 @@ import CoreLocation
 /// Secrets.plist (get one free at https://aistudio.google.com/apikey).
 final class GeminiBackend: ReasoningBackend {
     let displayName = "Gemini"
+    let supportsVision = true
     private let model: String
     private let session: URLSession
 

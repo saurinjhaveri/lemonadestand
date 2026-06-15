@@ -56,7 +56,7 @@ struct ContentView: View {
             Picker("Brain", selection: $model.backendChoice) {
                 ForEach(BackendChoice.allCases) { Text($0.label).tag($0) }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
 
             Picker("Length", selection: $model.guideLength) {
                 ForEach(GuideLength.allCases) { Text($0.label).tag($0) }
@@ -99,7 +99,7 @@ struct ContentView: View {
     }
 
     private var blurb: String {
-        let brain = model.backendChoice == .gemini ? "Gemini (free tier)" : "ChatGPT"
+        let brain = model.backendChoice.label
         let voice = model.ttsEngine == .natural
             ? "Natural voice (OpenAI, small cost)."
             : "Device voice — for a less robotic sound, install an Enhanced/Premium voice in Settings → Accessibility → Spoken Content → Voices."

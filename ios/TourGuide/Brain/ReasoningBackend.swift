@@ -6,6 +6,7 @@ import CoreLocation
 /// landmark candidates and return spoken-style tour-guide narration.
 protocol ReasoningBackend {
     var displayName: String { get }
+    var supportsVision: Bool { get }
     func generate(userText: String,
                   imageJPEG: Data?,
                   location: CLLocation?,

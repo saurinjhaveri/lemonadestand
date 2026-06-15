@@ -90,20 +90,40 @@ final class AppModel: ObservableObject {
     private let autoFallback = true   // Gemini↔ChatGPT on failure (e.g. 429)
 
     private func makeBackend(_ choice: BackendChoice) -> ReasoningBackend {
-        choice == .gpt ? OpenAIChatBackend() : GeminiBackend()
+        switch choice {
+        case .gemini:
+            return GeminiBackend()
+        case .gpt:
+            return OpenAICompatibleBackend(displayName: "ChatGPT", baseURL: Config.openAIBaseURL,
+                                           apiKey: Config.openAIAPIKey, model: Config.openAIChatModel,
+                                           supportsVision: true)
+        case .deepseek:
+            return OpenAICompatibleBackend(displayName: "DeepSeek R1", baseURL: Config.openRouterBaseURL,
+                                           apiKey: Config.openRouterAPIKey, model: Config.openRouterModel,
+                                           supportsVision: false)
+        }
     }
     private var backend: ReasoningBackend { makeBackend(backendChoice) }
-    /// Fallback stays on the SAME provider with a cheaper/lighter model, so a
-    /// free Gemini user never gets silently charged for a paid ChatGPT call.
+    /// Fallback stays on the SAME provider with a lighter model, so a free user
+    /// is never silently charged for a paid provider.
     private var fallbackBackend: ReasoningBackend {
-        backendChoice == .gpt
-            ? OpenAIChatBackend(model: "gpt-4o-mini")
-            : GeminiBackend(model: "gemini-2.5-flash-lite")
+        switch backendChoice {
+        case .gemini:
+            return GeminiBackend(model: "gemini-2.5-flash-lite")
+        case .gpt:
+            return OpenAICompatibleBackend(displayName: "ChatGPT", baseURL: Config.openAIBaseURL,
+                                           apiKey: Config.openAIAPIKey, model: "gpt-4o-mini",
+                                           supportsVision: true)
+        case .deepseek:
+            return OpenAICompatibleBackend(displayName: "DeepSeek", baseURL: Config.openRouterBaseURL,
+                                           apiKey: Config.openRouterAPIKey, model: Config.openRouterFallbackModel,
+                                           supportsVision: false)
+        }
     }
 
     init() {
         voiceMode = VoiceMode(rawValue: UserDefaults.standard.string(forKey: "voiceMode") ?? "") ?? .lite
-        backendChoice = BackendChoice(rawValue: UserDefaults.standard.string(forKey: "backendChoice") ?? "") ?? .gemini
+        backendChoice = BackendChoice(rawValue: UserDefaults.standard.string(forKey: "backendChoice") ?? "") ?? .deepseek
         ttsEngine = TTSEngine(rawValue: UserDefaults.standard.string(forKey: "ttsEngine") ?? "") ?? .device
         guideLength = GuideLength(rawValue: UserDefaults.standard.string(forKey: "guideLength") ?? "") ?? .brief
         customInstructions = UserDefaults.standard.string(forKey: "customInstructions") ?? ""
@@ -251,32 +271,39 @@ final class AppModel: ObservableObject {
         let loc = location.location
         let mem = await buildDirectives(near: loc)
 
-        // Try the selected brain; fall back to the other on failure (e.g. 429).
+        // If there's a photo but the chosen brain is text-only (e.g. DeepSeek R1),
+        // route the image to Gemini (best free vision).
+        let needsVision = imageJPEG != nil && !backend.supportsVision
+        let primary: ReasoningBackend = needsVision ? GeminiBackend() : backend
+        let secondary: ReasoningBackend = needsVision
+            ? GeminiBackend(model: "gemini-2.5-flash-lite") : fallbackBackend
+
+        // Try the primary brain; fall back to a free/lighter one on failure (e.g. 429).
         var result: GuideResult
         var ok = true
         do {
             result = try await service.narrate(
                 userText: userText, imageJPEG: imageJPEG,
-                location: loc, history: history, memoryContext: mem, backend: backend)
+                location: loc, history: history, memoryContext: mem, backend: primary)
         } catch {
             if autoFallback {
                 do {
                     let alt = try await service.narrate(
                         userText: userText, imageJPEG: imageJPEG,
-                        location: loc, history: history, memoryContext: mem, backend: fallbackBackend)
-                    result = GuideResult(text: "(via \(fallbackBackend.displayName)) " + alt.text,
+                        location: loc, history: history, memoryContext: mem, backend: secondary)
+                    result = GuideResult(text: "(via \(secondary.displayName)) " + alt.text,
                                          usage: alt.usage)
                 } catch let e2 {
                     ok = false
                     result = GuideResult(
-                        text: "Both brains failed. \(backend.displayName): \(error.localizedDescription). "
-                            + "\(fallbackBackend.displayName): \(e2.localizedDescription)",
+                        text: "Both brains failed. \(primary.displayName): \(error.localizedDescription). "
+                            + "\(secondary.displayName): \(e2.localizedDescription)",
                         usage: BrainUsage())
                 }
             } else {
                 ok = false
                 result = GuideResult(
-                    text: "Sorry — \(backend.displayName) failed: \(error.localizedDescription)",
+                    text: "Sorry — \(primary.displayName) failed: \(error.localizedDescription)",
                     usage: BrainUsage())
             }
         }
@@ -309,7 +336,7 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(lifetimeCostUSD, forKey: "lifetimeCostUSD")
         let tokens = result.usage.inputTokens + result.usage.outputTokens
         lastTurn = String(format: "%@ · %d tok · ~$%.4f",
-                          result.usage.provider.isEmpty ? backend.displayName : result.usage.provider,
+                          result.usage.provider.isEmpty ? primary.displayName : result.usage.provider,
                           tokens, cost)
     }
 

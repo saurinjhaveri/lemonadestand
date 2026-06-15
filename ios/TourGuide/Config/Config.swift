@@ -13,6 +13,13 @@ enum Config {
     /// ChatGPT text/vision model for Lite mode + "Look at this".
     /// Full GPT-4o for best landmark accuracy; use "gpt-4o-mini" to cut cost.
     static let openAIChatModel = "gpt-4o"
+    static let openAIBaseURL = "https://api.openai.com/v1"
+
+    // OpenRouter: free, strong reasoning (DeepSeek R1). One endpoint, many models.
+    static let openRouterBaseURL = "https://openrouter.ai/api/v1"
+    static let openRouterModel = "deepseek/deepseek-r1:free"          // best free reasoning
+    static let openRouterFallbackModel = "deepseek/deepseek-chat-v3-0324:free"  // faster free fallback
+    static var openRouterAPIKey: String { secrets["OpenRouterAPIKey"] ?? "" }
 
     /// Gemini model for Lite mode + "Look at this". Update to the latest flash
     /// model from https://ai.google.dev/gemini-api/docs/models if needed.

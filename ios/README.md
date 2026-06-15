@@ -56,17 +56,21 @@ Out of the box it uses `MockGlassesProvider`, so it runs in the simulator.
 Keys live in `Secrets.plist` (git-ignored), read directly by `Config.swift`.
 Copy `Secrets.example.plist` → `Secrets.plist` and fill in:
 
-- `OpenAIAPIKey` — Realtime voice + the ChatGPT brain.
-- `GooglePlacesAPIKey` — landmark grounding by GPS.
-- `GeminiAPIKey` — the free Gemini brain (get one at https://aistudio.google.com/apikey).
+- `OpenRouterAPIKey` — free DeepSeek R1 brain (get one at https://openrouter.ai/keys). Recommended.
+- `GeminiAPIKey` — free Gemini brain + photo vision (https://aistudio.google.com/apikey).
+- `OpenAIAPIKey` — optional, paid: Realtime voice + the ChatGPT brain.
+- `GooglePlacesAPIKey` — optional: landmark grounding by GPS (clear it to be 100% free).
 
 ## Modes & brains
 
 - **Lite mode** (default): Apple on-device speech-to-text + text-to-speech (free)
   + a text/vision brain. Cheap or free, turn-based.
 - **Realtime mode**: OpenAI speech-to-speech (premium, pricier).
-- **Brain** (used by Lite voice and "Look at this"): **Gemini** (free tier,
-  strong vision) or **ChatGPT** — toggle on the start screen.
+- **Brain** (Lite voice + "Look at this"): **DeepSeek R1** (free, strong
+  reasoning, via OpenRouter — text-only, so photos auto-route to Gemini),
+  **Gemini** (free, best vision), or **ChatGPT** ($). Toggle on the start screen.
+  The generic `OpenAICompatibleBackend` also works with Groq / GitHub Models /
+  Cerebras — just change base URL + model in `Config.swift`.
 
 A live **cost meter** (Realtime token usage → estimated $) shows in the status
 card; edit the rates in `Models/Usage.swift`. OpenAI exposes no balance API, so
