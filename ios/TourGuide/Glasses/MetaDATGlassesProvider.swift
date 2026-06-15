@@ -45,6 +45,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
         try? Wearables.configure()   // safe to call; ignore "already configured"
         let wearables = Wearables.shared
 
+        var mockDeviceId: DeviceIdentifier?
         #if canImport(MWDATMockDevice)
         if useMockDevice {
             let kit = MockDeviceKit.shared
@@ -56,14 +57,24 @@ final class MetaDATGlassesProvider: GlassesProvider {
             mock.powerOn()
             mock.unfold()
             mock.don()
+            mockDeviceId = mock.deviceIdentifier
         }
         #endif
 
         try await ensureRegistered(wearables)
         _ = try? await wearables.requestPermission(.camera)
 
-        // Start a device session and wait until it's running.
-        let selector = AutoDeviceSelector(wearables: wearables)
+        // Wait for the (mock or real) device to be discovered before we create a
+        // session, otherwise the selector finds nothing → noEligibleDevice.
+        await waitForDevice(wearables, timeout: 6)
+
+        // Target the mock device explicitly on the Simulator; auto-select otherwise.
+        let selector: any DeviceSelector
+        if let mockDeviceId {
+            selector = SpecificDeviceSelector(device: mockDeviceId)
+        } else {
+            selector = AutoDeviceSelector(wearables: wearables)
+        }
         let deviceSession = try wearables.createSession(deviceSelector: selector)
         try deviceSession.start()
         for await state in deviceSession.stateStream() {
@@ -122,6 +133,14 @@ final class MetaDATGlassesProvider: GlassesProvider {
     /// One-time linking with the Meta AI app. Opens the link flow if needed and
     /// returns once the app is registered. URL callback is handled in
     /// TourGuideApp via `.onOpenURL`.
+    /// Poll until Wearables has discovered at least one device (or we time out).
+    private func waitForDevice(_ wearables: any WearablesInterface, timeout: TimeInterval) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while wearables.devices.isEmpty && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 150_000_000)   // 0.15s
+        }
+    }
+
     private func ensureRegistered(_ wearables: any WearablesInterface) async throws {
         // Already registered (incl. the auto-registered mock device) → done.
         if wearables.registrationState == .registered { return }
