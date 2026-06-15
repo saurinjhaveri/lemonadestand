@@ -25,6 +25,15 @@ targets:
     platform: iOS
     sources:
       - TourGuide
+    # Associated Domains for DAT's Universal Link app-linking handshake.
+    # NB: this capability requires the PAID Apple Developer Program — a free
+    # personal team will fail to sign on-device with this entitlement (Simulator
+    # builds are unaffected). Remove this block if you must do a free on-device build.
+    entitlements:
+      path: TourGuide/Resources/TourGuide.entitlements
+      properties:
+        com.apple.developer.associated-domains:
+          - applinks:saurinjhaveri.github.io
     # Full Info.plist is generated from here so permissions can't be dropped.
     # API keys are NOT here — they live in Secrets.plist (read by Config.swift).
     info:
@@ -61,7 +70,7 @@ targets:
           MetaAppID: "YOUR_META_APP_ID"       # from your Meta developer app registration
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.yourorg.tourguide
+        PRODUCT_BUNDLE_IDENTIFIER: com.saurin.tourguide
         SWIFT_VERSION: "5.0"   # Swift 5 language mode; adopt Swift 6 concurrency later
         TARGETED_DEVICE_FAMILY: "1,2"
         # DEVELOPMENT_TEAM: ABCDE12345   # <- set your Apple Team ID (needed to run on real glasses/device)
