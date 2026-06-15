@@ -268,7 +268,7 @@ final class AppModel: ObservableObject {
         isThinking = true
         defer { isThinking = false }
 
-        let loc = location.location
+        let loc = resolvedLocation()   // GPS now, or last-known if signal dropped
         let mem = await buildDirectives(near: loc)
 
         // If there's a photo but the chosen brain is text-only (e.g. GPT-5 Nano),
@@ -284,26 +284,28 @@ final class AppModel: ObservableObject {
         do {
             result = try await service.narrate(
                 userText: userText, imageJPEG: imageJPEG,
-                location: loc, history: history, memoryContext: mem, backend: primary)
+                location: loc, history: history, memoryContext: mem,
+                backend: primary, cacheSalt: cacheSalt(primary))
         } catch {
             if autoFallback {
                 do {
                     let alt = try await service.narrate(
                         userText: userText, imageJPEG: imageJPEG,
-                        location: loc, history: history, memoryContext: mem, backend: secondary)
+                        location: loc, history: history, memoryContext: mem,
+                        backend: secondary, cacheSalt: cacheSalt(secondary))
                     result = GuideResult(text: "(via \(secondary.displayName)) " + alt.text,
                                          usage: alt.usage)
                 } catch let e2 {
                     ok = false
-                    result = GuideResult(
-                        text: "Both brains failed. \(primary.displayName): \(error.localizedDescription). "
-                            + "\(secondary.displayName): \(e2.localizedDescription)",
-                        usage: BrainUsage())
+                    result = GuideResult(text: failureText(primary: error, secondary: e2),
+                                         usage: BrainUsage())
                 }
             } else {
                 ok = false
                 result = GuideResult(
-                    text: "Sorry — \(primary.displayName) failed: \(error.localizedDescription)",
+                    text: isOffline(error)
+                        ? "You seem to be offline — I can't reach the guide right now. Try again when you have signal."
+                        : "Sorry — \(primary.displayName) failed: \(error.localizedDescription)",
                     usage: BrainUsage())
             }
         }
@@ -338,6 +340,44 @@ final class AppModel: ObservableObject {
         lastTurn = String(format: "%@ · %d tok · ~$%.4f",
                           result.usage.provider.isEmpty ? primary.displayName : result.usage.provider,
                           tokens, cost)
+    }
+
+    /// Cache answers per brain + length so different settings don't collide.
+    private func cacheSalt(_ b: ReasoningBackend) -> String { "\(b.displayName)|\(guideLength.rawValue)" }
+
+    private func isOffline(_ error: Error) -> Bool {
+        guard let url = error as? URLError else { return false }
+        return [.notConnectedToInternet, .networkConnectionLost, .timedOut,
+                .cannotConnectToHost, .cannotFindHost, .dataNotAllowed,
+                .internationalRoamingOff].contains(url.code)
+    }
+
+    private func failureText(primary: Error, secondary: Error) -> String {
+        if isOffline(primary) && isOffline(secondary) {
+            return "You seem to be offline. I can only talk about places I've already told you about "
+                + "(saved in your journal) — try again when you have signal."
+        }
+        return "Both brains failed. \(primary.localizedDescription) / \(secondary.localizedDescription)"
+    }
+
+    // MARK: - Last-known location (poor-signal fallback)
+
+    /// Current GPS if available (cached for later), else the last good fix
+    /// (if recent enough to still be useful).
+    private func resolvedLocation() -> CLLocation? {
+        if let loc = location.location {
+            let d = UserDefaults.standard
+            d.set(loc.coordinate.latitude, forKey: "lastLat")
+            d.set(loc.coordinate.longitude, forKey: "lastLng")
+            d.set(Date().timeIntervalSince1970, forKey: "lastLocAt")
+            return loc
+        }
+        let d = UserDefaults.standard
+        let at = d.double(forKey: "lastLocAt")
+        guard at > 0, Date().timeIntervalSince1970 - at < 6 * 3600 else { return nil }  // < 6h old
+        let lat = d.double(forKey: "lastLat"), lng = d.double(forKey: "lastLng")
+        guard lat != 0 || lng != 0 else { return nil }
+        return CLLocation(latitude: lat, longitude: lng)
     }
 
     /// Build the standing directives + memory injected into every prompt:

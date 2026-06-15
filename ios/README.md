@@ -128,5 +128,10 @@ Brains also **auto-fall back** (Gemini↔ChatGPT) on failure such as 429 quota.
 
 - **Phase 1 (talking guide):** done — Realtime + Lite voice through the glasses.
 - **Phase 2 (vision "Look at this"):** done — photo + GPS + Places → Gemini/ChatGPT.
+- **Phase 3 (guide intelligence):** done — conversation memory + persistent
+  profile, **Wikipedia grounding** (verified facts, less hallucination),
+  **landmark caching** (instant/free repeats), **itinerary & tourist-trap**
+  queries, and **offline/poor-signal fallbacks** (last-known location, graceful
+  offline messaging). Next: Phase 4 (backend, auth, rate limiting before sharing).
 - **Real glasses camera:** code complete, behind `canImport(MWDATCore)`; activate
   with the steps above when DAT access lands.

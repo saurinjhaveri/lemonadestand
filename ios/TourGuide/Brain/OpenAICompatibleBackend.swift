@@ -26,6 +26,7 @@ final class OpenAICompatibleBackend: ReasoningBackend {
                   imageJPEG: Data?,
                   location: CLLocation?,
                   candidates: [LandmarkCandidate],
+                  grounding: String,
                   history: [ChatTurn],
                   memoryContext: String) async throws -> GuideResult {
         guard !apiKey.isEmpty else { throw ReasoningError.missingKey("\(displayName) API key") }
@@ -34,7 +35,8 @@ final class OpenAICompatibleBackend: ReasoningBackend {
             : TourPrompt.system + "\n\nFollow these standing instructions and context:\n" + memoryContext
 
         // Build the user message (text, plus image only if this model has vision).
-        let userTurn = TourPrompt.userText(userText, location: location, candidates: candidates)
+        let userTurn = TourPrompt.userText(userText, location: location,
+                                           candidates: candidates, grounding: grounding)
         let userContent: Any
         if supportsVision, let imageJPEG {
             let dataURL = "data:image/jpeg;base64,\(imageJPEG.base64EncodedString())"

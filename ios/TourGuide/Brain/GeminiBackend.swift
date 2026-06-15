@@ -19,12 +19,14 @@ final class GeminiBackend: ReasoningBackend {
                   imageJPEG: Data?,
                   location: CLLocation?,
                   candidates: [LandmarkCandidate],
+                  grounding: String,
                   history: [ChatTurn],
                   memoryContext: String) async throws -> GuideResult {
         guard !Config.geminiAPIKey.isEmpty else { throw ReasoningError.missingKey("GeminiAPIKey") }
 
         var parts: [[String: Any]] = [
-            ["text": TourPrompt.userText(userText, location: location, candidates: candidates)]
+            ["text": TourPrompt.userText(userText, location: location,
+                                         candidates: candidates, grounding: grounding)]
         ]
         if let imageJPEG {
             parts.append(["inline_data": ["mime_type": "image/jpeg",

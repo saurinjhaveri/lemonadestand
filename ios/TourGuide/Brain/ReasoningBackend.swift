@@ -11,6 +11,7 @@ protocol ReasoningBackend {
                   imageJPEG: Data?,
                   location: CLLocation?,
                   candidates: [LandmarkCandidate],
+                  grounding: String,
                   history: [ChatTurn],
                   memoryContext: String) async throws -> GuideResult
 }
@@ -54,11 +55,32 @@ enum TourPrompt {
         return parts.isEmpty ? "(no location available)" : parts.joined(separator: " ")
     }
 
-    /// The full user turn text (context + their question or a default).
-    static func userText(_ userText: String, location: CLLocation?, candidates: [LandmarkCandidate]) -> String {
+    /// Verified facts (Wikipedia) + per-intent guidance, injected as reference
+    /// context so the model grounds answers instead of hallucinating.
+    static func grounding(facts: [WikiFact], intent: TourIntent) -> String {
+        var parts: [String] = []
+        if !facts.isEmpty {
+            let f = facts.prefix(5).map { fact -> String in
+                var s = "• \(fact.title)"
+                if let d = fact.distanceMeters { s += " (~\(Int(d))m away)" }
+                return s + ": \(fact.extract)"
+            }.joined(separator: "\n")
+            parts.append("Reference facts (verified, from Wikipedia — prefer these over your "
+                + "own memory; if they don't match the photo, trust the photo and say so):\n\(f)")
+        }
+        if !intent.directive.isEmpty { parts.append("Guidance for this answer: \(intent.directive)") }
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// The full user turn text (context + verified facts + their question or a default).
+    static func userText(_ userText: String, location: CLLocation?,
+                         candidates: [LandmarkCandidate], grounding: String = "") -> String {
         let question = userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "Identify what's in this photo and tell me about it. If the photo doesn't clearly show a place/landmark/artwork, say you can't tell and ask me what I'm looking at — do NOT guess based on my GPS area."
             : userText
-        return "\(context(location: location, candidates: candidates))\n\nUser: \(question)"
+        var blocks = [context(location: location, candidates: candidates)]
+        if !grounding.isEmpty { blocks.append(grounding) }
+        blocks.append("User: \(question)")
+        return blocks.joined(separator: "\n\n")
     }
 }
