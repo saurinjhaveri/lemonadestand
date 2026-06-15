@@ -62,19 +62,36 @@ final class TourGuideService {
         // see (e.g. GPT-5 Nano), let Gemini identify it, then hand that read to
         // the brain as text so it writes the narration.
         var imageForBackend = imageJPEG
+        var textForBackend = userText
         if let imageJPEG, !backend.supportsVision {
-            if let read = try? await vision.describeScene(
+            let read = (try? await vision.describeScene(
                 imageJPEG: imageJPEG, userText: userText,
-                location: location, candidates: candidates) {
-                let block = "What the camera sees (from a vision model — treat as the "
-                    + "primary evidence of what the user is looking at):\n\(read)"
+                location: location, candidates: candidates))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let read, !read.isEmpty {
+                let block = "What the camera sees (from a vision model — this IS the photo the user "
+                    + "is looking at right now; treat it as if you saw it yourself and narrate "
+                    + "accordingly, do NOT say you can't see images):\n\(read)"
                 grounding = grounding.isEmpty ? block : grounding + "\n\n" + block
                 imageForBackend = nil   // brain works from the text read
+                if textForBackend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    textForBackend = "Tell me about what I'm looking at."
+                }
+            } else {
+                // Vision read failed → let the vision backend narrate the image
+                // directly rather than send it to a brain that can't see.
+                let result = try await vision.generate(
+                    userText: userText, imageJPEG: imageJPEG,
+                    location: location, candidates: candidates, grounding: grounding,
+                    history: history, memoryContext: memoryContext)
+                if allowCache, let key { await cache.set(result.text, for: key) }
+                return result
             }
         }
 
         let result = try await backend.generate(
-            userText: userText, imageJPEG: imageForBackend,
+            userText: textForBackend, imageJPEG: imageForBackend,
             location: location, candidates: candidates, grounding: grounding,
             history: history, memoryContext: memoryContext)
 

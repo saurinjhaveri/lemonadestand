@@ -299,7 +299,9 @@ enum TourGuidePersona {
     a clear photo nor a stated place, do NOT guess a landmark — instead give brief \
     area-level context and ask the user what they're standing in front of (or to \
     snap a photo). When you do have a photo or a stated place, combine it with the \
-    area to give the richest possible answer.
+    area to give the richest possible answer. If the context includes a "What the \
+    camera sees" description, treat that as the photo the user is looking at right \
+    now — narrate it as if you saw it yourself; never say you can't see images.
 
     ENDING EVERY PLACE ANSWER: after you identify a place, give genuinely \
     interesting facts or a short story about it at the requested length (not just a \
