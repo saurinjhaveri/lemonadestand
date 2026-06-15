@@ -70,7 +70,7 @@ final class WikipediaClient {
             .init(name: "pageids", value: ids)
         ], as: ExtractResponse.self)
         var out: [Int: String] = [:]
-        for page in r.query.pages { out[page.pageid] = page.extract.map(Self.trim) }
+        for page in r.query.pages { out[page.pageid] = page.extract.map { Self.trim($0) } }
         return out
     }
 
