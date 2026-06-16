@@ -75,7 +75,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.saurin.tourguide
         SWIFT_VERSION: "5.0"   # Swift 5 language mode; adopt Swift 6 concurrency later
         TARGETED_DEVICE_FAMILY: "1,2"
-        # DEVELOPMENT_TEAM: ABCDE12345   # <- set your Apple Team ID (needed to run on real glasses/device)
+        DEVELOPMENT_TEAM: 5P57QNRV6C
     # Meta DAT SDK — adding this makes `canImport(MWDATCore)` true, so
     # MetaDATGlassesProvider's real implementation activates automatically.
     # The package + MWDATMockDevice work without approval (simulated Ray-Ban);
