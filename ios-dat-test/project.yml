@@ -23,6 +23,14 @@ targets:
     platform: iOS
     sources:
       - DATTest
+    # Needed so iOS routes the registration RETURN universal link
+    # (https://saurinjhaveri.github.io/...) back to this app. Requires paid Apple
+    # account + the AASA hosted on that domain.
+    entitlements:
+      path: DATTest/DATTest.entitlements
+      properties:
+        com.apple.developer.associated-domains:
+          - applinks:saurinjhaveri.github.io
     info:
       path: DATTest/Info.plist
       properties:
