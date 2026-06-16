@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CoreBluetooth
 #if canImport(MWDATCore)
 import MWDATCore
 import MWDATCamera
@@ -13,6 +14,18 @@ final class DATTester: ObservableObject {
     @Published var lines: [String] = ["Tap Connect to begin."]
     @Published var busy = false
     @Published var connected = false
+
+    // The DAT SDK discovers/registers glasses over Bluetooth, so the app needs
+    // Bluetooth permission. Creating a central manager triggers the iOS prompt;
+    // if it's never granted, registration stays .unavailable.
+    private let bt = BluetoothProbe()
+
+    init() {
+        bt.onUpdate = { [weak self] status in
+            Task { @MainActor in self?.log("🔵 Bluetooth: \(status)") }
+        }
+        bt.start()
+    }
 
     #if canImport(MWDATCore)
     private var session: DeviceSession?
@@ -34,6 +47,11 @@ final class DATTester: ObservableObject {
         busy = true; connected = false
         defer { busy = false }
         do {
+            log("⓪ Bluetooth: \(BluetoothProbe.status())")
+            if BluetoothProbe.authorization != "allowedAlways" {
+                log("   ⚠️ Bluetooth not authorized for this app → registration will be UNAVAILABLE.")
+                log("     Allow the Bluetooth prompt, or enable it in Settings ▸ DAT Test ▸ Bluetooth.")
+            }
             log("① configure()")
             do { try Wearables.configure(); log("   configured ✓") }
             catch { log("   configure note: \(error) (often safe if already configured)") }
@@ -179,4 +197,44 @@ final class DATTester: ObservableObject {
 enum TestError: Error, CustomStringConvertible {
     case msg(String)
     var description: String { if case .msg(let m) = self { return m }; return "error" }
+}
+
+/// Triggers the iOS Bluetooth permission prompt (by creating a central manager)
+/// and reports state/authorization — the DAT SDK needs BT authorized to register.
+final class BluetoothProbe: NSObject, CBCentralManagerDelegate {
+    private var central: CBCentralManager?
+    var onUpdate: ((String) -> Void)?
+
+    func start() {
+        // Creating this on first launch shows the Bluetooth permission prompt.
+        central = CBCentralManager(delegate: self, queue: .main)
+    }
+
+    func centralManagerDidUpdateState(_ c: CBCentralManager) {
+        onUpdate?("state=\(BluetoothProbe.name(c.state)) auth=\(BluetoothProbe.authorization)")
+    }
+
+    static var authorization: String {
+        switch CBCentralManager.authorization {
+        case .notDetermined: return "notDetermined"
+        case .restricted: return "restricted"
+        case .denied: return "denied"
+        case .allowedAlways: return "allowedAlways"
+        @unknown default: return "unknown"
+        }
+    }
+
+    static func status() -> String { "auth=\(authorization)" }
+
+    static func name(_ s: CBManagerState) -> String {
+        switch s {
+        case .poweredOn: return "poweredOn"
+        case .poweredOff: return "poweredOff"
+        case .unauthorized: return "unauthorized"
+        case .unsupported: return "unsupported"
+        case .resetting: return "resetting"
+        case .unknown: return "unknown"
+        @unknown default: return "unknown"
+        }
+    }
 }
