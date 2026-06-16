@@ -60,14 +60,12 @@ final class DATTester: ObservableObject {
 
             log("② registration state = \(w.registrationState.description)")
             if w.registrationState != .registered {
-                log("   not registered — calling startRegistration() (approve in Meta AI app)")
-                try? await withTimeout(30, "registration") {
-                    try await self.awaitRegistered(w)
-                }
+                log("   not registered — starting registration (up to 90s).")
+                log("   👉 When the Meta AI app opens, APPROVE/trust the app, then return here.")
+                await registerWithTimeout(w, seconds: 90)
                 log("   registration state now = \(w.registrationState.description)")
-                if w.registrationState == .unavailable {
-                    log("   ⚠️ UNAVAILABLE = Developer Mode is OFF (or not signed in). Enable it in")
-                    log("     Meta AI app ▸ Settings ▸ App Info ▸ tap version 5× ▸ Developer Mode ON.")
+                if w.registrationState != .registered {
+                    log("   ✗ registration didn't reach 'registered'. Did the Meta AI app open and let you approve?")
                 }
             }
 
@@ -161,16 +159,27 @@ final class DATTester: ObservableObject {
     // MARK: - Helpers
 
     #if canImport(MWDATCore)
-    private func awaitRegistered(_ w: any WearablesInterface) async throws {
-        if w.registrationState == .registered { return }
-        for await state in w.registrationStateStream() {
-            await MainActor.run { self.log("   reg state → \(state.description)") }
-            switch state {
-            case .registered: return
-            case .available: try? await w.startRegistration()
-            case .unavailable: throw TestError.msg("registration unavailable")
-            default: continue
+    /// Poll registration state up to `seconds`, calling startRegistration() exactly
+    /// once. Polling (not the state stream) avoids the cancellation/spam problems.
+    private func registerWithTimeout(_ w: any WearablesInterface, seconds: Double) async {
+        let deadline = Date().addingTimeInterval(seconds)
+        var triggered = false
+        var last = ""
+        while Date() < deadline {
+            let s = w.registrationState
+            if s.description != last { log("   reg state → \(s.description)"); last = s.description }
+            if s == .registered { return }
+            if s == .available && !triggered {
+                triggered = true
+                log("   calling startRegistration()…")
+                do {
+                    try await w.startRegistration()
+                    log("   startRegistration() returned ✓ — approve in the Meta AI app now")
+                } catch {
+                    log("   startRegistration ERROR: \(describe(error))")
+                }
             }
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
     }
     #endif
