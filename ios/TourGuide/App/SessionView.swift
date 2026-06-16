@@ -12,6 +12,9 @@ struct SessionView: View {
     var body: some View {
         VStack(spacing: 14) {
             statusBar
+            if model.glassesState.isFailure {
+                glassesErrorBanner
+            }
             conversation
             controls
         }
@@ -57,6 +60,22 @@ struct SessionView: View {
                 .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var glassesErrorBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text(model.glassesState.failureMessage ?? "Glasses failed to connect.")
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button { Task { await model.retryGlasses() } } label: {
+                Label("Retry glasses", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(ChipButtonStyle())
+        }
+        .card(12)
     }
 
     // MARK: - Conversation

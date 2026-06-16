@@ -225,6 +225,15 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Re-attempt the glasses connection without restarting the whole session.
+    func retryGlasses() async {
+        do {
+            try await glasses.connect()
+        } catch {
+            glassesState = .failed(error.localizedDescription)
+        }
+    }
+
     /// Shut the guide up immediately (button / barge-in), all engines.
     func stopSpeaking() {
         deviceSpeaker.stop()
