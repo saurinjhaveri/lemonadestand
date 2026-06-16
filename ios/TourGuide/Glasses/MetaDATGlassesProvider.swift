@@ -61,12 +61,17 @@ final class MetaDATGlassesProvider: GlassesProvider {
         }
         #endif
 
-        try await ensureRegistered(wearables)
+        // Best-effort registration. In Developer Mode the production linking flow
+        // isn't used, so we time-box it and proceed — if the session genuinely
+        // needs registration, createSession below will surface a clear error.
+        try? await withTimeout(15, step: "registration") {
+            try await self.ensureRegistered(wearables)
+        }
         _ = try? await wearables.requestPermission(.camera)
 
         // Wait for the (mock or real) device to be discovered before we create a
         // session, otherwise the selector finds nothing → noEligibleDevice.
-        await waitForDevice(wearables, timeout: 6)
+        await waitForDevice(wearables, timeout: 8)
 
         // Target the mock device explicitly on the Simulator; auto-select otherwise.
         let selector: any DeviceSelector
@@ -77,9 +82,14 @@ final class MetaDATGlassesProvider: GlassesProvider {
         }
         let deviceSession = try wearables.createSession(deviceSelector: selector)
         try deviceSession.start()
-        for await state in deviceSession.stateStream() {
-            if state == .started { break }
-            if state == .stopped { throw GlassesError.notConnected }
+        try await withTimeout(20, step: "starting the session") {
+            for await state in deviceSession.stateStream() {
+                if state == .started { return }
+                if state == .stopped {
+                    throw GlassesError.setup("The glasses session stopped. Make sure they're "
+                        + "connected in the Meta AI app, worn, and Developer Mode is on.")
+                }
+            }
         }
         self.session = deviceSession
 
@@ -102,7 +112,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
                 DispatchQueue.main.async { self.onPhotoCaptured?(data) }
             }
         }
-        await stream.start()
+        try await withTimeout(20, step: "starting the camera") { await stream.start() }
         self.stream = stream
         connectionState = .connected
     }
@@ -133,6 +143,22 @@ final class MetaDATGlassesProvider: GlassesProvider {
     /// One-time linking with the Meta AI app. Opens the link flow if needed and
     /// returns once the app is registered. URL callback is handled in
     /// TourGuideApp via `.onOpenURL`.
+    /// Run an async step but fail with a clear, labeled error instead of hanging
+    /// forever (DAT calls can stall if the glasses aren't reachable).
+    private func withTimeout<T: Sendable>(_ seconds: Double, step: String,
+                                          _ op: @Sendable @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await op() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw GlassesError.setup("Timed out during \(step). Check the glasses are "
+                    + "connected in the Meta AI app, worn (hinges open), and Developer Mode is on.")
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
+        }
+    }
+
     /// Poll until Wearables has discovered at least one device (or we time out).
     private func waitForDevice(_ wearables: any WearablesInterface, timeout: TimeInterval) async {
         let deadline = Date().addingTimeInterval(timeout)
