@@ -30,7 +30,10 @@ targets:
       path: DATTest/DATTest.entitlements
       properties:
         com.apple.developer.associated-domains:
-          - applinks:saurinjhaveri.github.io
+          # ?mode=developer makes iOS fetch the AASA directly from the domain
+          # (bypasses Apple's CDN cache) — needed while the file is freshly hosted.
+          # Requires Settings ▸ Developer ▸ Associated Domains Development = ON.
+          - applinks:saurinjhaveri.github.io?mode=developer
     info:
       path: DATTest/Info.plist
       properties:
