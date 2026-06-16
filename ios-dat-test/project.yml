@@ -40,6 +40,7 @@ targets:
         CFBundleDisplayName: DAT Test
         NSCameraUsageDescription: "Used to capture from the glasses camera."
         NSBluetoothAlwaysUsageDescription: "Used to connect to your glasses."
+        NSLocalNetworkUsageDescription: "Used to connect to your glasses over the local network."
         NSLocationWhenInUseUsageDescription: "Used by the toolkit."
         UIBackgroundModes: [audio, bluetooth-peripheral, external-accessory]
         UILaunchScreen: {}
