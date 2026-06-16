@@ -139,6 +139,9 @@ struct SessionView: View {
 
     private var controls: some View {
         VStack(spacing: 10) {
+            if !model.lastNarration.isEmpty && !model.isThinking {
+                followUps
+            }
             askField
             talkButton
             HStack(spacing: 10) {
@@ -153,6 +156,24 @@ struct SessionView: View {
                 .buttonStyle(ChipButtonStyle(tint: .red))
             }
         }
+    }
+
+    /// Tap-instead-of-speak follow-ups, shown once there's an answer.
+    private var followUps: some View {
+        HStack(spacing: 8) {
+            followChip("Tell me more", "text.bubble") { model.tellMore() }
+            followChip("Where next?", "figure.walk") { model.whereNext() }
+            followChip("That's it", "checkmark") { model.thatsIt() }
+        }
+    }
+
+    private func followChip(_ title: String, _ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 38)
+        }
+        .buttonStyle(ChipButtonStyle())
     }
 
     private var talkButton: some View {

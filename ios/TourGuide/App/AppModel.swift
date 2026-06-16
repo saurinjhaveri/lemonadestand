@@ -226,6 +226,16 @@ final class AppModel: ObservableObject {
         Task { await respond(userText: t, imageJPEG: nil) }
     }
 
+    // MARK: - On-screen follow-ups (tap instead of speaking)
+
+    private func send(_ prompt: String, shownAs label: String) {
+        transcript = label
+        Task { await respond(userText: prompt, imageJPEG: nil) }
+    }
+    func tellMore()  { send("Tell me more about this — go deeper with a short story or a couple more facts.", shownAs: "Tell me more") }
+    func whereNext() { send("Where should I go next nearby, and why? Pick the single best spot.", shownAs: "Where to next?") }
+    func thatsIt()   { stopSpeaking(); transcript = ""; lastNarration = "" }
+
     // MARK: - "Look at this" (manual photo)
 
     /// Pick a photo to identify (camera on device, library otherwise). The
@@ -247,7 +257,9 @@ final class AppModel: ObservableObject {
         defer { isThinking = false }
 
         let loc = resolvedLocation()
-        let mem = await buildDirectives(near: loc)
+        let mark = await placemark(for: loc)
+        let revisit = updateCheckin(area: mark?.subLocality ?? mark?.locality)
+        let mem = await buildDirectives(near: loc, revisit: revisit)
 
         // The chosen brain writes the answer. If it can't see and there's a photo,
         // TourGuideService runs the Gemini "eyes → brain" handoff automatically.
@@ -264,12 +276,10 @@ final class AppModel: ObservableObject {
         } catch {
             if autoFallback {
                 do {
-                    let alt = try await service.narrate(
+                    result = try await service.narrate(
                         userText: userText, imageJPEG: imageJPEG,
                         location: loc, history: history, memoryContext: mem,
                         backend: secondary, cacheSalt: cacheSalt(secondary))
-                    result = GuideResult(text: "(via \(secondary.displayName)) " + alt.text,
-                                         usage: alt.usage)
                 } catch let e2 {
                     ok = false
                     result = GuideResult(text: failureText(primary: error, secondary: e2),
@@ -294,7 +304,7 @@ final class AppModel: ObservableObject {
         if history.count > 8 { history.removeFirst(history.count - 8) }
 
         if ok {
-            let name = await placeName(for: loc)
+            let name = mark?.name ?? mark?.locality
             let record = MemoryRecord(
                 placeName: name,
                 latitude: loc?.coordinate.latitude,
@@ -350,11 +360,32 @@ final class AppModel: ObservableObject {
         return CLLocation(latitude: lat, longitude: lng)
     }
 
+    // Remember which neighborhood we've already introduced, so we don't repeat
+    // the area intro every turn (persists across sessions = the "check-in").
+    private var lastCheckinArea: String {
+        get { UserDefaults.standard.string(forKey: "lastCheckinArea") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "lastCheckinArea") }
+    }
+
+    /// True if we're still in the same neighborhood we last introduced (so skip
+    /// the area intro). Records a new area as checked-in.
+    private func updateCheckin(area: String?) -> Bool {
+        guard let area, !area.isEmpty else { return false }
+        if area == lastCheckinArea { return true }
+        lastCheckinArea = area
+        return false
+    }
+
     /// Standing directives + memory injected into every prompt: length rule,
     /// custom instructions, learned profile, nearby & recent.
-    private func buildDirectives(near loc: CLLocation?) async -> String {
+    private func buildDirectives(near loc: CLLocation?, revisit: Bool) async -> String {
         var lines: [String] = []
         lines.append("Answer length: " + guideLength.directive)
+        if revisit {
+            lines.append("I'm still in a neighborhood you've already introduced — do NOT re-describe "
+                + "the area or give general neighborhood context again; answer only the specific "
+                + "place or question.")
+        }
         let ci = customInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
         if !ci.isEmpty { lines.append("User's standing instructions (obey these): \(ci)") }
         let profile = await memory.profile()
@@ -371,9 +402,8 @@ final class AppModel: ObservableObject {
         return lines.joined(separator: "\n")
     }
 
-    private func placeName(for loc: CLLocation?) async -> String? {
+    private func placemark(for loc: CLLocation?) async -> CLPlacemark? {
         guard let loc else { return nil }
-        let marks = try? await CLGeocoder().reverseGeocodeLocation(loc)
-        return marks?.first.flatMap { $0.name ?? $0.locality }
+        return (try? await CLGeocoder().reverseGeocodeLocation(loc))?.first
     }
 }
