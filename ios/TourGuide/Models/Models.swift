@@ -33,15 +33,7 @@ enum ConnectionState: Equatable {
     case failed(String)
 }
 
-/// How the voice conversation runs.
-enum VoiceMode: String, CaseIterable, Identifiable {
-    case lite       // Apple on-device STT + TTS + text/vision backend (free with Gemini)
-    case realtime   // OpenAI Realtime speech-to-speech ($$)
-    var id: String { rawValue }
-    var label: String { self == .lite ? "Lite (free)" : "Realtime ($$)" }
-}
-
-/// Which reasoning/vision backend powers Lite mode + "Look at this".
+/// Which reasoning/vision backend powers the guide + "Look at this".
 enum BackendChoice: String, CaseIterable, Identifiable {
     case openrouter // OpenRouter (GPT-5 Nano) — cheap, fast, strong (text)
     case gemini     // free tier, best free vision

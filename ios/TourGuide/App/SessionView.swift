@@ -12,8 +12,8 @@ struct SessionView: View {
     var body: some View {
         VStack(spacing: 14) {
             statusBar
-            if model.glassesState.isFailure {
-                glassesErrorBanner
+            if model.voiceState.isFailure {
+                micErrorBanner
             }
             conversation
             controls
@@ -42,8 +42,9 @@ struct SessionView: View {
     private var statusBar: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                StatusPill(icon: "eyeglasses", label: "GLASSES",
-                           detail: model.glassesState.short, color: model.glassesState.pillColor)
+                StatusPill(icon: "photo.on.rectangle.angled", label: "PHOTOS",
+                           detail: model.autoNarratePhotos ? "Watching" : "Off",
+                           color: model.autoNarratePhotos ? .green : .secondary)
                 StatusPill(icon: "waveform", label: "VOICE",
                            detail: model.voiceState.short, color: model.voiceState.pillColor)
                 StatusPill(icon: "location.fill", label: "GPS",
@@ -62,18 +63,13 @@ struct SessionView: View {
         }
     }
 
-    private var glassesErrorBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(model.glassesState.failureMessage ?? "Glasses failed to connect.")
-                    .font(.footnote)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Button { Task { await model.retryGlasses() } } label: {
-                Label("Retry glasses", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(ChipButtonStyle())
+    private var micErrorBanner: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Text((model.voiceState.failureMessage ?? "Microphone unavailable.")
+                 + " Enable Microphone & Speech Recognition in Settings.")
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .card(12)
     }

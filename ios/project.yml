@@ -25,13 +25,6 @@ targets:
     platform: iOS
     sources:
       - TourGuide
-    # Associated Domains for the DAT Universal Link handshake (requires the PAID
-    # Apple Developer Program — enabled now that the account is active).
-    entitlements:
-      path: TourGuide/Resources/TourGuide.entitlements
-      properties:
-        com.apple.developer.associated-domains:
-          - applinks:saurinjhaveri.github.io
     # Full Info.plist is generated from here so permissions can't be dropped.
     # API keys are NOT here — they live in Secrets.plist (read by Config.swift).
     info:
@@ -45,9 +38,7 @@ targets:
         NSSpeechRecognitionUsageDescription: "Used to understand what you ask your tour guide (on-device in Lite mode)."
         NSLocationWhenInUseUsageDescription: "Used to identify nearby landmarks and tailor your tour to where you are."
         NSCameraUsageDescription: "Used to capture what you are looking at so the guide can identify it."
-        NSBluetoothAlwaysUsageDescription: "Used to connect to your glasses for audio and capture."
-        NSLocalNetworkUsageDescription: "Used to connect to your glasses over the local network."
-        UIBackgroundModes: [audio, bluetooth-peripheral, external-accessory]
+        UIBackgroundModes: [audio]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -59,38 +50,10 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSPhotoLibraryUsageDescription: "Used to pick a photo to identify when testing without glasses."
-        # --- Meta Wearables Device Access Toolkit (needed only for real glasses) ---
-        UISupportedExternalAccessoryProtocols: [com.meta.ar.wearable]
-        CFBundleURLTypes:
-          - CFBundleURLSchemes: [tourguide]   # must match MWDAT.AppLinkURLScheme
-        MWDAT:
-          AppLinkURLScheme: tourguide
-          # Application ID — ONLY for production/distribution, NOT Developer Mode.
-          # Meta: "Do not set it if you are using Developer Mode to test." For
-          # production, add MetaAppID here and put the Client Token in Secrets
-          # (don't commit it). For now we test via Developer Mode on the glasses.
-          # MetaAppID: "YOUR_META_APP_ID"
+        NSPhotoLibraryUsageDescription: "Used to read new photos (e.g. synced from your glasses) so the guide can narrate them."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.saurin.tourguide
         SWIFT_VERSION: "5.0"   # Swift 5 language mode; adopt Swift 6 concurrency later
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: 5P57QNRV6C
-    # Meta DAT SDK — adding this makes `canImport(MWDATCore)` true, so
-    # MetaDATGlassesProvider's real implementation activates automatically.
-    # The package + MWDATMockDevice work without approval (simulated Ray-Ban);
-    # linking REAL glasses also needs DAT preview approval + MWDAT.MetaAppID above.
-    dependencies:
-      - package: MetaWearablesDAT
-        product: MWDATCore
-      - package: MetaWearablesDAT
-        product: MWDATCamera
-      - package: MetaWearablesDAT
-        product: MWDATMockDevice
-
-# Swift packages (top-level key, sibling of `targets`).
-packages:
-  MetaWearablesDAT:
-    url: https://github.com/facebook/meta-wearables-dat-ios
-    from: 0.7.0

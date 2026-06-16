@@ -1,138 +1,106 @@
-# Tour Guide — iOS app (Phase 1 scaffold)
+# Tour Guide — iOS app
 
-Phase 1 of the [Smart Glasses Tour Guide plan](../SMART_GLASSES_TOUR_GUIDE_PLAN.md):
-foundations for the **talking guide**.
+A hands-free AI **tour guide** for Ray-Ban Meta glasses. Take a photo with the
+glasses (or in-app), and the guide identifies what you're looking at and tells
+you the story — grounded with real facts, spoken aloud.
 
-What this scaffold gives you:
-- **Glasses session** abstraction with photo capture (Meta Wearables Device
-  Access Toolkit integration point + a mock provider so it runs in the simulator).
-- **GPS** via CoreLocation.
-- **Bluetooth audio** routing so the glasses act as the mic/speaker.
-- **OpenAI Realtime** voice client (speech-to-speech over WebSocket) for the
-  hands-free conversation.
-- A minimal SwiftUI control surface to connect, push-to-talk, and "look at this".
+## How glasses photos reach the app (the Camera Roll bridge)
 
-This is a **skeleton**: it compiles and runs in the simulator against the
-`MockGlassesProvider`, but you must supply your own API keys and swap in the
-real Meta SDK (see "Integration points" below) to use it with real glasses.
+Meta's Device Access Toolkit (DAT) can't reliably connect on iOS 26 yet (open
+SDK bug), so the app uses a simpler, robust path that works **today**:
 
----
+1. You press the **capture button on the glasses**.
+2. The photo syncs to your iPhone **Camera Roll** via the Meta AI app.
+3. The app **watches the Camera Roll** and **auto-narrates** each new photo.
+
+Bonus: this uses the glasses' **full-resolution** photo (better than DAT's
+streaming frames). You can also tap **Look at this** to pick/take a photo
+manually.
+
+## How an answer is built
+
+`photo / question → Gemini "eyes" (if the brain can't see) → chosen brain writes
+the narration → spoken`, grounded by:
+- **Google Places** (nearby landmark candidates by GPS) — optional.
+- **Wikipedia** (verified facts → less hallucination).
+- **Memory** (traveler profile + "been here before" + recent turns).
 
 ## Layout
 
 ```
 TourGuide/
-  App/        App entry, SwiftUI view, coordinating AppModel
-  Glasses/    GlassesProvider protocol, Mock + Meta DAT implementations
+  App/        App entry, AppModel, SwiftUI screens (Start/Session/Settings), Theme
+  Glasses/    PhotoLibraryWatcher (Camera Roll bridge) + inert DAT provider files
   Location/   CoreLocation manager
-  Audio/      Bluetooth audio session routing
-  Voice/      OpenAI Realtime WebSocket client
-  Brain/      Google Places + tour-guide orchestration (vision lands in Phase 2)
-  Models/     Shared types
+  Audio/      Audio session routing (glasses as BT headset for mic/speaker)
+  Voice/      On-device speech-to-text + text-to-speech
+  Brain/      Persona, reasoning/vision backends, Places + Wikipedia + orchestration
+  Models/     Shared types + cost estimates
   Config/     Build config + secrets template
-  Resources/  Info.plist (permissions + background audio)
+  Resources/  Info.plist (permissions)
 ```
 
 ## Generate the Xcode project
 
-This uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) so the project file
-is reproducible:
+Uses [XcodeGen](https://github.com/yonaskolb/XcodeGen):
 
 ```bash
 brew install xcodegen
 cd ios
-# 1. Create your secrets file and add your keys (see below)
-cp TourGuide/Config/Secrets.example.plist TourGuide/Config/Secrets.plist
-# 2. Edit Secrets.plist, then generate AFTER the file exists so it gets bundled
+cp TourGuide/Config/Secrets.example.plist TourGuide/Config/Secrets.plist  # add keys
 xcodegen generate
 open TourGuide.xcodeproj
 ```
 
-Then set your Apple **Team** in Signing, pick your device, and run.
-Out of the box it uses `MockGlassesProvider`, so it runs in the simulator.
-
 ## Configuration / secrets
 
-Keys live in `Secrets.plist` (git-ignored), read directly by `Config.swift`.
-Copy `Secrets.example.plist` → `Secrets.plist` and fill in:
+Keys live in `Secrets.plist` (git-ignored), read by `Config.swift`:
 
-- `OpenRouterAPIKey` — cheap GPT-5 Nano brain via OpenRouter (sub-cent/query; key at https://openrouter.ai/keys). Recommended.
-- `GeminiAPIKey` — free Gemini brain + photo vision (https://aistudio.google.com/apikey).
-- `OpenAIAPIKey` — optional, paid: Realtime voice + the ChatGPT brain.
-- `GooglePlacesAPIKey` — optional: landmark grounding by GPS (clear it to be 100% free).
+- `OpenRouterAPIKey` — cheap GPT-5 Nano brain (sub-cent/query; https://openrouter.ai/keys). Recommended default.
+- `GeminiAPIKey` — free Gemini brain **and** photo vision (https://aistudio.google.com/apikey).
+- `OpenAIAPIKey` — optional, paid: the ChatGPT (GPT-4o) brain + Natural TTS voice.
+- `GooglePlacesAPIKey` — optional: landmark grounding by GPS (clear it to stay 100% free).
 
-## Modes & brains
+> `Secrets.plist` is bundled as a resource — after editing it, re-run
+> `xcodegen generate` and **Clean Build Folder** before running.
 
-- **Lite mode** (default): Apple on-device speech-to-text + text-to-speech (free)
-  + a text/vision brain. Cheap or free, turn-based.
-- **Realtime mode**: OpenAI speech-to-speech (premium, pricier).
-- **Brain** (Lite voice + "Look at this"): **GPT-5 Nano** (cheap & fast via
-  OpenRouter, ~sub-cent/query — text-only, so for photos Gemini identifies the
-  scene and hands that read to the brain to narrate ("eyes → brain")),
-  **Gemini** (free, best vision), or **ChatGPT** ($, premium). Toggle on the
-  start screen. Swap `openRouterModel` in `Config.swift` for any model at
-  https://openrouter.ai/models (e.g. `meta-llama/llama-4-scout`,
-  `nvidia/nemotron-3-super`). The generic `OpenAICompatibleBackend` also works
-  with Groq / GitHub Models / Cerebras — just change base URL + model.
+## Brains
 
-A live **cost meter** (Realtime token usage → estimated $) shows in the status
-card; edit the rates in `Models/Usage.swift`. OpenAI exposes no balance API, so
-check openai.com for your true remaining credit.
+Pick on the start screen (gear ▸ Settings ▸ Brain):
+- **GPT-5 Nano** (default, via OpenRouter) — cheap, fast, strong. Text-only, so
+  photos go through Gemini "eyes → brain".
+- **Gemini** — free, sees photos directly.
+- **ChatGPT (GPT-4o)** — paid, best accuracy, sees photos directly.
 
-> Important: `Secrets.plist` is bundled as a resource, so after creating or
-> editing it you must re-run `xcodegen generate` (so it's added to the project),
-> then **Clean Build Folder** in Xcode before running.
+Swap `openRouterModel` in `Config.swift` for any model at
+https://openrouter.ai/models. The generic `OpenAICompatibleBackend` also works
+with Groq / GitHub Models / Cerebras (change base URL + model). Brains
+**auto-fall back** to a lighter same-provider model on failure (e.g. 429).
 
-> For anything beyond personal testing, move these keys behind a backend so they
-> don't ship in the app (see plan §3).
+## Voice
 
-## Activating the real Meta glasses camera
+On-device **speech-to-text** (push-to-talk) + **text-to-speech**:
+- **Device voice** (free) — pick an Enhanced/Premium voice in Settings ▸
+  Accessibility ▸ Spoken Content ▸ Voices for a less robotic sound.
+- **Natural voice** (OpenAI TTS, small cost).
 
-The real integration is already written in `Glasses/MetaDATGlassesProvider.swift`,
-guarded by `#if canImport(MWDATCore)`. It's a no-op stub until the SDK is present,
-then activates automatically. When your DAT preview access comes through:
-
-1. **Add the SPM package**: in Xcode, File → Add Package Dependencies →
-   `https://github.com/facebook/meta-wearables-dat-ios`; add products
-   `MWDATCore`, `MWDATCamera`, `MWDATMockDevice`. (Or uncomment the
-   `packages:`/`dependencies:` block in `project.yml` and re-run `xcodegen generate`.)
-2. **Set your Meta App ID**: in `project.yml`, replace `MWDAT.MetaAppID`
-   (`YOUR_META_APP_ID`) with the ID from your Meta developer app registration.
-   The URL scheme `tourguide` is already wired (`CFBundleURLTypes` + `onOpenURL`).
-3. **Set your Apple `DEVELOPMENT_TEAM`** in `project.yml` and run on a real iPhone
-   with the glasses paired to the Meta AI app.
-4. First launch will prompt the **Meta app linking** (registration) flow, then
-   ask for **camera permission** on the glasses.
-
-That's it — `AppModel.makeGlassesProvider()` picks the real provider once the SDK
-imports; on the Simulator it uses MockDeviceKit so the same code path is testable.
-If a symbol name differs in your SDK version, the compiler points right at it.
-
-> Audio (mic/speaker) needs no SDK — the glasses are a standard Bluetooth headset,
-> routed by `AudioSessionManager`.
+A live **cost meter** (per-turn + session/lifetime estimate) shows in Settings;
+edit rates in `Models/Usage.swift`.
 
 ## Memory (second brain)
 
-Persistent, layered memory behind a `MemoryStore` protocol:
-- **Local now** (`LocalMemoryStore`): on-device JSON in Documents — offline, free.
-  Records every turn (place, GPS, Q&A) + a preferences profile; recall (recent +
-  nearby + profile) is injected into each prompt.
+Behind a `MemoryStore` protocol:
+- **Local** (`LocalMemoryStore`): on-device JSON — records every turn (place,
+  GPS, Q&A) + a preferences profile; recall is injected into each prompt.
 - **Obsidian journal** (`ObsidianExporter`): mirrors entries to
-  `Documents/TourGuideVault/<date>.md` with `[[place]]` backlinks and `#tags`.
-  File sharing is enabled, so open the folder in the Files app / point Obsidian at it.
-- **Later**: SwiftData and/or Supabase (Postgres + pgvector) adopt the same
-  protocol for cross-device sync + semantic recall.
+  `Documents/TourGuideVault/<date>.md` with `[[place]]` backlinks + `#tags`
+  (open the folder in Files / Obsidian).
 
-Brains also **auto-fall back** (Gemini↔ChatGPT) on failure such as 429 quota.
+## Meta DAT (live glasses connection) — parked for now
 
-## Status
-
-- **Phase 1 (talking guide):** done — Realtime + Lite voice through the glasses.
-- **Phase 2 (vision "Look at this"):** done — photo + GPS + Places → Gemini/ChatGPT.
-- **Phase 3 (guide intelligence):** done — conversation memory + persistent
-  profile, **Wikipedia grounding** (verified facts, less hallucination),
-  **landmark caching** (instant/free repeats), **itinerary & tourist-trap**
-  queries, and **offline/poor-signal fallbacks** (last-known location, graceful
-  offline messaging). Next: Phase 4 (backend, auth, rate limiting before sharing).
-- **Real glasses camera:** code complete, behind `canImport(MWDATCore)`; activate
-  with the steps above when DAT access lands.
+The DAT provider (`Glasses/MetaDATGlassesProvider.swift`) is kept in the repo but
+**inert** (the SDK package is not added). DAT's iOS-26 registration/permission
+deep-links are broken upstream, and the camera is streaming-resolution only, so
+the Camera Roll bridge is the better path today. To revisit when Meta ships a fix:
+add the `meta-wearables-dat-ios` SPM package back, re-add the Associated Domains
+entitlement + `MWDAT` Info.plist keys, and wire `AppModel` to the provider.

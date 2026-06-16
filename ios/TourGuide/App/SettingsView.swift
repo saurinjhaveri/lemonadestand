@@ -9,9 +9,6 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section("Conversation") {
-                    Picker("Mode", selection: $model.voiceMode) {
-                        ForEach(VoiceMode.allCases) { Text($0.label).tag($0) }
-                    }
                     Picker("Brain", selection: $model.backendChoice) {
                         ForEach(BackendChoice.allCases) { Text($0.label).tag($0) }
                     }

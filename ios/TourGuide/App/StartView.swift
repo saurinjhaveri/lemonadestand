@@ -12,9 +12,6 @@ struct StartView: View {
                 hero
                 setupSummary
                 startButton
-                if model.glassesState.isFailure {
-                    failureNote
-                }
                 footnote
             }
             .padding()
@@ -43,12 +40,13 @@ struct StartView: View {
 
     private var setupSummary: some View {
         VStack(spacing: 0) {
-            summaryRow(icon: "waveform", title: "Mode", value: model.voiceMode.label)
-            Divider().padding(.leading, 44)
             summaryRow(icon: "brain.head.profile", title: "Brain", value: model.backendChoice.label)
             Divider().padding(.leading, 44)
             summaryRow(icon: "speaker.wave.2.fill", title: "Voice",
                        value: model.ttsEngine == .natural ? "Natural" : "Device")
+            Divider().padding(.leading, 44)
+            summaryRow(icon: "photo.on.rectangle.angled", title: "Auto-narrate photos",
+                       value: model.autoNarratePhotos ? "On" : "Off")
             Divider().padding(.leading, 44)
             Button { showSettings = true } label: {
                 HStack {
@@ -84,15 +82,6 @@ struct StartView: View {
         }
         .buttonStyle(BigButtonStyle())
         .padding(.top, 4)
-    }
-
-    private var failureNote: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            Text(model.glassesState.failureMessage ?? "Glasses unavailable.")
-                .font(.footnote).foregroundStyle(.secondary)
-        }
-        .card(12)
     }
 
     private var footnote: some View {
