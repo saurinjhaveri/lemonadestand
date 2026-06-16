@@ -78,14 +78,33 @@ final class MetaDATGlassesProvider: GlassesProvider {
 
         // Wait for the (mock or real) device to be discovered before we create a
         // session, otherwise the selector finds nothing → noEligibleDevice.
-        await waitForDevice(wearables, timeout: 8)
+        await waitForDevice(wearables, timeout: 10)
 
-        // Target the mock device explicitly on the Simulator; auto-select otherwise.
+        // Target the mock device explicitly on the Simulator; on a real device,
+        // require a discovered device and check its compatibility so we can give a
+        // precise reason instead of a bare "no eligible device".
         let selector: any DeviceSelector
         if let mockDeviceId {
             selector = SpecificDeviceSelector(device: mockDeviceId)
         } else {
-            selector = AutoDeviceSelector(wearables: wearables)
+            guard let deviceId = wearables.devices.first else {
+                throw GlassesError.setup("No glasses found. Make sure your Ray-Ban Meta are "
+                    + "connected in the Meta AI app (Bluetooth) and you're wearing them with the "
+                    + "hinges open, then tap Retry glasses.")
+            }
+            if let device = wearables.deviceForIdentifier(deviceId) {
+                switch device.compatibility() {
+                case .deviceUpdateRequired:
+                    throw GlassesError.setup("Your glasses need a firmware update — update them in "
+                        + "the Meta AI app, then tap Retry glasses.")
+                case .sdkUpdateRequired:
+                    throw GlassesError.setup("Your glasses need a newer toolkit than this build "
+                        + "bundles. Update the meta-wearables-dat package, then rebuild.")
+                default:
+                    break
+                }
+            }
+            selector = SpecificDeviceSelector(device: deviceId)
         }
         let deviceSession = try wearables.createSession(deviceSelector: selector)
         try deviceSession.start()
