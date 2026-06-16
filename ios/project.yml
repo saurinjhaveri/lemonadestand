@@ -46,6 +46,7 @@ targets:
         NSLocationWhenInUseUsageDescription: "Used to identify nearby landmarks and tailor your tour to where you are."
         NSCameraUsageDescription: "Used to capture what you are looking at so the guide can identify it."
         NSBluetoothAlwaysUsageDescription: "Used to connect to your glasses for audio and capture."
+        NSLocalNetworkUsageDescription: "Used to connect to your glasses over the local network."
         UIBackgroundModes: [audio, bluetooth-peripheral, external-accessory]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
