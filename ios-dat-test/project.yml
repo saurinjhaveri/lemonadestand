@@ -52,7 +52,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.saurin.tourguide
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
-        # DEVELOPMENT_TEAM: ABCDE12345   # <- set your Apple Team ID before building to device
+        DEVELOPMENT_TEAM: 5P57QNRV6C
     dependencies:
       - package: MetaWearablesDAT
         product: MWDATCore
