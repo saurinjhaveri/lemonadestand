@@ -40,13 +40,17 @@ final class DATTester: ObservableObject {
 
             let w = Wearables.shared
 
-            log("② registration state = \(w.registrationState)")
+            log("② registration state = \(w.registrationState.description)")
             if w.registrationState != .registered {
                 log("   not registered — calling startRegistration() (approve in Meta AI app)")
                 try? await withTimeout(30, "registration") {
                     try await self.awaitRegistered(w)
                 }
-                log("   registration state now = \(w.registrationState)")
+                log("   registration state now = \(w.registrationState.description)")
+                if w.registrationState == .unavailable {
+                    log("   ⚠️ UNAVAILABLE = Developer Mode is OFF (or not signed in). Enable it in")
+                    log("     Meta AI app ▸ Settings ▸ App Info ▸ tap version 5× ▸ Developer Mode ON.")
+                }
             }
 
             log("③ camera permission status…")
@@ -86,7 +90,7 @@ final class DATTester: ObservableObject {
             try sess.start()
             try await withTimeout(20, "session start") {
                 for await st in sess.stateStream() {
-                    await MainActor.run { self.log("   session state → \(st)") }
+                    await MainActor.run { self.log("   session state → \(st.description)") }
                     if st == .started { return }
                     if st == .stopped { throw TestError.msg("session stopped") }
                 }
@@ -142,7 +146,7 @@ final class DATTester: ObservableObject {
     private func awaitRegistered(_ w: any WearablesInterface) async throws {
         if w.registrationState == .registered { return }
         for await state in w.registrationStateStream() {
-            await MainActor.run { self.log("   reg state → \(state)") }
+            await MainActor.run { self.log("   reg state → \(state.description)") }
             switch state {
             case .registered: return
             case .available: try? await w.startRegistration()
