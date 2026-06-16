@@ -65,7 +65,11 @@ targets:
           - CFBundleURLSchemes: [tourguide]   # must match MWDAT.AppLinkURLScheme
         MWDAT:
           AppLinkURLScheme: tourguide
-          MetaAppID: "YOUR_META_APP_ID"       # from your Meta developer app registration
+          # Application ID — ONLY for production/distribution, NOT Developer Mode.
+          # Meta: "Do not set it if you are using Developer Mode to test." For
+          # production, add MetaAppID here and put the Client Token in Secrets
+          # (don't commit it). For now we test via Developer Mode on the glasses.
+          # MetaAppID: "YOUR_META_APP_ID"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.saurin.tourguide
