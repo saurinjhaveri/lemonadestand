@@ -67,7 +67,14 @@ final class MetaDATGlassesProvider: GlassesProvider {
         try? await withTimeout(15, step: "registration") {
             try await self.ensureRegistered(wearables)
         }
-        _ = try? await wearables.requestPermission(.camera)
+        // Camera permission is granted in the Meta AI app. Check first and only
+        // trigger the request flow if needed — that flow opens a meta.ai universal
+        // link that fails (LSApplicationWorkspaceError 115) on older Meta AI app
+        // versions. If you grant Camera manually in the Meta AI app, this is skipped.
+        let camStatus = (try? await wearables.checkPermissionStatus(.camera)) ?? .denied
+        if camStatus != .granted {
+            _ = try? await wearables.requestPermission(.camera)
+        }
 
         // Wait for the (mock or real) device to be discovered before we create a
         // session, otherwise the selector finds nothing → noEligibleDevice.
