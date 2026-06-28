@@ -32,13 +32,16 @@ final class TourGuideService {
                  backend: ReasoningBackend,
                  cacheSalt: String = "") async throws -> GuideResult {
         let intent = TourIntent.detect(userText)
+        let needsVision = imageJPEG != nil && !backend.supportsVision
 
-        // Nearby landmark candidates (wider for "plan the area" intents).
-        var candidates: [LandmarkCandidate] = []
-        if let location, !Config.googlePlacesAPIKey.isEmpty {
-            let radius = intent.isArea ? 1500 : 150
-            candidates = (try? await places.nearbyLandmarks(at: location, radius: radius)) ?? []
-        }
+        // Kick off the independent network fetches CONCURRENTLY (instead of
+        // Places → Wikipedia → vision sequentially). The slowest one sets the
+        // latency floor rather than the sum — ~2–3s faster per "Look at this".
+        async let candidatesTask = nearbyCandidates(at: location, intent: intent)
+        async let factsTask = nearbyFacts(at: location, intent: intent)
+        async let readTask = visionRead(needsVision ? imageJPEG : nil, userText: userText, location: location)
+
+        let candidates = await candidatesTask
 
         // Cache: only for fresh (non-follow-up) turns with a stable anchor.
         let allowCache = history.isEmpty
@@ -48,39 +51,26 @@ final class TourGuideService {
             return GuideResult(text: hit, usage: BrainUsage(provider: "cache"))
         }
 
-        // Wikipedia grounding (best-effort; ignore failures / offline).
-        var facts: [WikiFact] = []
-        if let location {
-            facts = (try? await wiki.nearbyFacts(
-                at: location,
-                radius: intent.isArea ? 1500 : 700,
-                limit: intent.isArea ? 5 : 3)) ?? []
-        }
+        let facts = await factsTask
         var grounding = TourPrompt.grounding(facts: facts, intent: intent)
 
-        // "Eyes → brain" handoff: if there's a photo but the chosen brain can't
-        // see (e.g. GPT-5 Nano), let Gemini identify it, then hand that read to
-        // the brain as text so it writes the narration.
+        // "Eyes → brain" handoff: if the chosen brain can't see, fold in Gemini's
+        // read of the photo (computed in parallel above).
         var imageForBackend = imageJPEG
         var textForBackend = userText
-        if let imageJPEG, !backend.supportsVision {
-            let read = (try? await vision.describeScene(
-                imageJPEG: imageJPEG, userText: userText,
-                location: location, candidates: candidates))?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
+        let read = await readTask
+        if needsVision {
             if let read, !read.isEmpty {
                 let block = "What the camera sees (from a vision model — this IS the photo the user "
                     + "is looking at right now; treat it as if you saw it yourself and narrate "
                     + "accordingly, do NOT say you can't see images):\n\(read)"
                 grounding = grounding.isEmpty ? block : grounding + "\n\n" + block
-                imageForBackend = nil   // brain works from the text read
+                imageForBackend = nil
                 if textForBackend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     textForBackend = "Tell me about what I'm looking at."
                 }
             } else {
-                // Vision read failed → let the vision backend narrate the image
-                // directly rather than send it to a brain that can't see.
+                // Vision read failed → let the vision backend narrate the image directly.
                 let result = try await vision.generate(
                     userText: userText, imageJPEG: imageJPEG,
                     location: location, candidates: candidates, grounding: grounding,
@@ -97,6 +87,27 @@ final class TourGuideService {
 
         if allowCache, let key { await cache.set(result.text, for: key) }
         return result
+    }
+
+    // MARK: - Concurrent fetch helpers
+
+    private func nearbyCandidates(at location: CLLocation?, intent: TourIntent) async -> [LandmarkCandidate] {
+        guard let location, !Config.googlePlacesAPIKey.isEmpty else { return [] }
+        return (try? await places.nearbyLandmarks(at: location, radius: intent.isArea ? 1500 : 150)) ?? []
+    }
+
+    private func nearbyFacts(at location: CLLocation?, intent: TourIntent) async -> [WikiFact] {
+        guard let location else { return [] }
+        return (try? await wiki.nearbyFacts(at: location,
+                                            radius: intent.isArea ? 1500 : 700,
+                                            limit: intent.isArea ? 5 : 3)) ?? []
+    }
+
+    private func visionRead(_ imageJPEG: Data?, userText: String, location: CLLocation?) async -> String? {
+        guard let imageJPEG else { return nil }
+        return (try? await vision.describeScene(imageJPEG: imageJPEG, userText: userText,
+                                                location: location, candidates: []))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// A stable key anchored to a specific landmark (identify) or area (planning).
