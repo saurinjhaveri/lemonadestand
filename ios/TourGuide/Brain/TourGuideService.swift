@@ -34,11 +34,18 @@ final class TourGuideService {
         let intent = TourIntent.detect(userText)
         let needsVision = imageJPEG != nil && !backend.supportsVision
 
+        // On follow-ups (e.g. "tell me more") reuse the conversation instead of
+        // re-fetching grounding — skip Places + Wikipedia for a faster reply.
+        // Keep Places for area asks like "where next?" which need fresh candidates.
+        let isFollowUp = !history.isEmpty
+        let placesLoc: CLLocation? = (!isFollowUp || intent.isArea) ? location : nil
+        let factsLoc: CLLocation? = isFollowUp ? nil : location
+
         // Kick off the independent network fetches CONCURRENTLY (instead of
         // Places → Wikipedia → vision sequentially). The slowest one sets the
         // latency floor rather than the sum — ~2–3s faster per "Look at this".
-        async let candidatesTask = nearbyCandidates(at: location, intent: intent)
-        async let factsTask = nearbyFacts(at: location, intent: intent)
+        async let candidatesTask = nearbyCandidates(at: placesLoc, intent: intent)
+        async let factsTask = nearbyFacts(at: factsLoc, intent: intent)
         async let readTask = visionRead(needsVision ? imageJPEG : nil, userText: userText, location: location)
 
         let candidates = await candidatesTask

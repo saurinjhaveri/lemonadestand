@@ -50,11 +50,16 @@ final class OpenAICompatibleBackend: ReasoningBackend {
         for turn in history { messages.append(["role": turn.role.rawValue, "content": turn.text]) }
         messages.append(["role": "user", "content": userContent])
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": model,
             "messages": messages,
-            "max_tokens": 600   // R1 spends some on reasoning; answer length is capped by the prompt
+            "max_tokens": 600   // answer length is capped by the prompt
         ]
+        // OpenRouter only: route to the fastest host for this model (big latency
+        // win, no model change). Ignored by other OpenAI-compatible endpoints.
+        if baseURL.contains("openrouter") {
+            body["provider"] = ["sort": "throughput", "allow_fallbacks": true]
+        }
 
         var request = URLRequest(url: URL(string: "\(baseURL)/chat/completions")!)
         request.httpMethod = "POST"
