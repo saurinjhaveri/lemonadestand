@@ -92,6 +92,9 @@ final class GeminiBackend: ReasoningBackend {
         Transcribe ALL readable text in this image VERBATIM, in natural reading \
         order (column by column if multi-column). Preserve paragraphs. Output \
         ONLY the transcription — no commentary, no headers, no notes.
+        CRITICAL: transcribe ONLY characters you can actually see. NEVER guess, \
+        reconstruct, or fill in words that are blurry or cut off. If the text is \
+        too blurry or small to read reliably, respond with exactly: UNREADABLE
         """
         let contents: [[String: Any]] = [[
             "role": "user",

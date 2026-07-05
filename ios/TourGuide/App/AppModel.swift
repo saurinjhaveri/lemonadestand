@@ -413,17 +413,37 @@ final class AppModel: ObservableObject {
         lastNarration = ""
     }
 
-    /// OCR the page on-device (free/offline); if the read is sparse or shaky,
-    /// escalate to Gemini transcription (~$0.001/page) so quality never tanks.
+    /// Distinctive words for cross-checking an AI transcription against what
+    /// the on-device OCR actually saw.
+    private static func contentWords(_ s: String) -> Set<String> {
+        Set(s.lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .filter { $0.count >= 4 })
+    }
+
+    /// OCR the page on-device (free/offline); a low-confidence read may be
+    /// repaired by verified AI transcription (~$0.001/page). Unreadable pages
+    /// get an honest tip — never invented text.
     /// Deliberately no journaling: what you read stays on the phone.
     private func readPage(_ imageJPEG: Data) async {
         isThinking = true
         defer { isThinking = false }
         var page = await PageReader.read(imageJPEG)
         var usedAI = false
-        if page.isSparse || page.isLowConfidence {
-            if let ai = try? await pageTranscriber.transcribePage(imageJPEG), ai.count > 40 {
-                page = PageReader.Page(text: ai, lineCount: max(page.lineCount, 3), confidence: 1)
+        // AI transcription may only REPAIR a shaky-but-real read — never invent
+        // one. Vision models "read" illegible pages by composing plausible text,
+        // so the AI text is only trusted if it agrees with most of the words the
+        // on-device OCR actually saw on the page.
+        if !page.isSparse, page.confidence < 0.35,
+           let ai = try? await pageTranscriber.transcribePage(imageJPEG),
+           !ai.uppercased().contains("UNREADABLE"), ai.count > 40 {
+            let seen = Self.contentWords(page.text)
+            let claimed = Self.contentWords(ai)
+            let overlap = seen.isEmpty ? 0
+                : Double(seen.intersection(claimed).count) / Double(seen.count)
+            if overlap >= 0.5 {
+                page = PageReader.Page(text: ai, lineCount: page.lineCount, confidence: 1)
                 usedAI = true
             }
         }
