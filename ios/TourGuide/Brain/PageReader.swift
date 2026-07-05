@@ -1,16 +1,22 @@
 import Foundation
 import Vision
 import CoreGraphics
+import CoreImage
+import UIKit
 
 /// Full-page text extraction for Read mode (books, newspapers, letters, menus).
-/// On-device Apple Vision OCR — free, offline, private. Handles reading order,
+/// On-device Apple Vision OCR — free, offline, private. Rectifies the page
+/// (perspective correction) before recognition, handles reading order,
 /// multi-column layouts (newspapers), hyphenated line wraps, and paragraphs.
 enum PageReader {
     struct Page {
         let text: String
         let lineCount: Int
+        let confidence: Float          // 0…1, length-weighted average
         /// Too little text to be worth narrating — likely bad framing/focus.
         var isSparse: Bool { text.count < 80 || lineCount < 3 }
+        /// Readable but unreliable — worth escalating to AI transcription.
+        var isLowConfidence: Bool { confidence < 0.45 }
     }
 
     static func read(_ imageData: Data) async -> Page {
@@ -23,26 +29,63 @@ enum PageReader {
 
     // MARK: - Private
 
-    private struct Line { let text: String; let box: CGRect }
+    private struct Line { let text: String; let box: CGRect; let confidence: Float }
 
     private static func readSync(_ imageData: Data) -> Page {
-        let handler = VNImageRequestHandler(data: imageData)
+        // Rectifying the page (like the Notes scanner) markedly improves OCR on
+        // angled shots; fall back to the raw image when no page is detected.
+        let input = rectify(imageData) ?? imageData
+
+        let handler = VNImageRequestHandler(data: input)
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
+        request.recognitionLanguages = ["en-US"]
+        if #available(iOS 16.0, *) {
+            request.revision = VNRecognizeTextRequestRevision3
+            request.automaticallyDetectsLanguage = true
+        }
         try? handler.perform([request])
 
         let lines: [Line] = (request.results ?? []).compactMap { obs in
             guard let top = obs.topCandidates(1).first, !top.string.isEmpty else { return nil }
-            return Line(text: top.string, box: obs.boundingBox)
+            return Line(text: top.string, box: obs.boundingBox, confidence: top.confidence)
         }
-        guard !lines.isEmpty else { return Page(text: "", lineCount: 0) }
+        guard !lines.isEmpty else { return Page(text: "", lineCount: 0, confidence: 0) }
 
         let text = clusterIntoColumns(lines)
             .map(joinColumn)
             .joined(separator: "\n\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return Page(text: text, lineCount: lines.count)
+
+        let totalChars = lines.reduce(0) { $0 + $1.text.count }
+        let weighted = lines.reduce(Float(0)) { $0 + $1.confidence * Float($1.text.count) }
+        let confidence = totalChars > 0 ? weighted / Float(totalChars) : 0
+
+        return Page(text: text, lineCount: lines.count, confidence: confidence)
+    }
+
+    /// Detect the document quad and perspective-correct it. Nil when no
+    /// convincing page is found (then OCR runs on the raw image).
+    private static func rectify(_ imageData: Data) -> Data? {
+        guard let ci = CIImage(data: imageData) else { return nil }
+        let seg = VNDetectDocumentSegmentationRequest()
+        try? VNImageRequestHandler(ciImage: ci).perform([seg])
+        guard let quad = seg.results?.first, quad.confidence > 0.8 else { return nil }
+        // Ignore tiny detections (a stamp, a card) — we want the page itself.
+        let bb = quad.boundingBox
+        guard bb.width * bb.height > 0.2 else { return nil }
+
+        let w = ci.extent.width, h = ci.extent.height
+        func v(_ p: CGPoint) -> CIVector { CIVector(x: p.x * w, y: p.y * h) }
+        let corrected = ci.applyingFilter("CIPerspectiveCorrection", parameters: [
+            "inputTopLeft": v(quad.topLeft),
+            "inputTopRight": v(quad.topRight),
+            "inputBottomLeft": v(quad.bottomLeft),
+            "inputBottomRight": v(quad.bottomRight)
+        ])
+        guard let cg = CIContext().createCGImage(corrected, from: corrected.extent) else { return nil }
+        return UIImage(cgImage: cg).jpegData(compressionQuality: 0.9)
     }
 
     /// Newspapers have 2–4 columns; reading top-to-bottom across the whole page

@@ -84,6 +84,27 @@ final class GeminiBackend: ReasoningBackend {
         return text
     }
 
+    /// Verbatim page transcription — the escalation path when on-device OCR is
+    /// low-confidence (Gemini reads soft/low-res text far better). ~$0.001/page.
+    func transcribePage(_ imageJPEG: Data) async throws -> String {
+        guard !Config.geminiAPIKey.isEmpty else { throw ReasoningError.missingKey("GeminiAPIKey") }
+        let prompt = """
+        Transcribe ALL readable text in this image VERBATIM, in natural reading \
+        order (column by column if multi-column). Preserve paragraphs. Output \
+        ONLY the transcription — no commentary, no headers, no notes.
+        """
+        let contents: [[String: Any]] = [[
+            "role": "user",
+            "parts": [["text": prompt],
+                      ["inline_data": ["mime_type": "image/jpeg",
+                                       "data": imageJPEG.base64EncodedString()]]]
+        ]]
+        let (text, _) = try await send(systemText: nil, contents: contents, maxTokens: 2500)
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw ReasoningError.badResponse }
+        return trimmed
+    }
+
     // MARK: - Shared request
 
     private func send(systemText: String?, contents: [[String: Any]],

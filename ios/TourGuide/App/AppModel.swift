@@ -94,6 +94,9 @@ final class AppModel: ObservableObject {
     private var activeSpeaker: GuideSpeaker { ttsEngine == .natural ? naturalSpeaker : deviceSpeaker }
     private let service = TourGuideService()
 
+    // Escalation OCR for Read mode (soft/low-res pages).
+    private let pageTranscriber = GeminiBackend()
+
     // Persistent "second brain": traveler profile + per-place recall + journal.
     private let memory: MemoryStore = LocalMemoryStore()
     private let exporter = ObsidianExporter()
@@ -410,28 +413,38 @@ final class AppModel: ObservableObject {
         lastNarration = ""
     }
 
-    /// OCR the page on-device and narrate it. No cloud call, no cost — and
-    /// deliberately no journaling: what you read stays on the phone.
+    /// OCR the page on-device (free/offline); if the read is sparse or shaky,
+    /// escalate to Gemini transcription (~$0.001/page) so quality never tanks.
+    /// Deliberately no journaling: what you read stays on the phone.
     private func readPage(_ imageJPEG: Data) async {
         isThinking = true
         defer { isThinking = false }
-        let page = await PageReader.read(imageJPEG)
+        var page = await PageReader.read(imageJPEG)
+        var usedAI = false
+        if page.isSparse || page.isLowConfidence {
+            if let ai = try? await pageTranscriber.transcribePage(imageJPEG), ai.count > 40 {
+                page = PageReader.Page(text: ai, lineCount: max(page.lineCount, 3), confidence: 1)
+                usedAI = true
+            }
+        }
         if page.isSparse {
             let tip = glassesState == .connected
-                ? "I couldn't read much there. Hold the page closer and steady, or press "
-                  + "the capture button on your glasses for a sharper photo."
-                : "I couldn't read much there. Try a closer, sharper photo."
+                ? "I couldn't read much there. Hold the page about arm's length away — too "
+                  + "close goes out of focus — keep it steady, or press the capture button "
+                  + "on your glasses for the sharpest photo."
+                : "I couldn't read much there. Try a sharper photo from about arm's length."
             lastNarration = tip
             deviceSpeaker.speak(tip)
             return
         }
         readPageCount += 1
-        // Show the source resolution — tells us instantly whether a bad read
-        // came from a low-res frame or genuinely hard print.
+        // Show source resolution (+ AI marker) — tells us instantly whether a
+        // bad read came from a low-res frame or genuinely hard print.
+        let aiTag = usedAI ? " · AI" : ""
         if let dims = UIImage(data: imageJPEG)?.size {
-            transcript = String(format: "(page %d · %.0f×%.0f)", readPageCount, dims.width, dims.height)
+            transcript = String(format: "(page %d · %.0f×%.0f%@)", readPageCount, dims.width, dims.height, aiTag)
         } else {
-            transcript = "(page \(readPageCount))"
+            transcript = "(page \(readPageCount)\(aiTag))"
         }
         lastNarration = page.text
         // Long-form reading always uses the free on-device voice — a whole page
