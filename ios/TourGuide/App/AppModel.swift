@@ -348,9 +348,9 @@ final class AppModel: ObservableObject {
             sceneText = scan.hintText
         }
 
+        let t0 = Date()
         let loc = resolvedLocation()
-        let mark = await placemark(for: loc)
-        let revisit = updateCheckin(area: mark?.subLocality ?? mark?.locality)
+        let revisit = updateCheckin(at: loc)   // coordinate grid — no geocode on the hot path
         let mem = await buildDirectives(near: loc, revisit: revisit)
 
         // The chosen brain writes the answer. If it can't see and there's a photo,
@@ -391,14 +391,16 @@ final class AppModel: ObservableObject {
 
         await deliver(result, ok: ok,
                       said: userText.isEmpty ? "(looked at something)" : userText,
-                      loc: loc, placeName: mark?.name ?? mark?.locality,
-                      fallbackProvider: primary.displayName)
+                      loc: loc, fallbackProvider: primary.displayName,
+                      elapsed: Date().timeIntervalSince(t0))
     }
 
     /// Speak + record a finished turn (shared by the normal and QR paths).
+    /// Speaking happens FIRST; the geocode for the journal runs after, off the
+    /// perceived-latency path.
     private func deliver(_ result: GuideResult, ok: Bool, said: String,
-                         loc: CLLocation?, placeName: String?,
-                         fallbackProvider: String) async {
+                         loc: CLLocation?, placeName: String? = nil,
+                         fallbackProvider: String, elapsed: TimeInterval? = nil) async {
         lastNarration = result.text
         activeSpeaker.speak(result.text)
 
@@ -407,8 +409,9 @@ final class AppModel: ObservableObject {
         if history.count > 8 { history.removeFirst(history.count - 8) }
 
         if ok {
+            let name = placeName ?? (await placemark(for: loc)).flatMap { $0.name ?? $0.locality }
             let record = MemoryRecord(
-                placeName: placeName,
+                placeName: name,
                 latitude: loc?.coordinate.latitude,
                 longitude: loc?.coordinate.longitude,
                 userText: said, guideText: result.text)
@@ -421,9 +424,10 @@ final class AppModel: ObservableObject {
         lifetimeCostUSD += cost
         UserDefaults.standard.set(lifetimeCostUSD, forKey: "lifetimeCostUSD")
         let tokens = result.usage.inputTokens + result.usage.outputTokens
-        lastTurn = String(format: "%@ · %d tok · ~$%.4f",
+        let timing = elapsed.map { String(format: " · %.1fs", $0) } ?? ""
+        lastTurn = String(format: "%@ · %d tok · ~$%.4f%@",
                           result.usage.provider.isEmpty ? fallbackProvider : result.usage.provider,
-                          tokens, cost)
+                          tokens, cost, timing)
     }
 
     // MARK: - QR fast path
@@ -528,12 +532,16 @@ final class AppModel: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "lastCheckinArea") }
     }
 
-    /// True if we're still in the same neighborhood we last introduced (so skip
-    /// the area intro). Records a new area as checked-in.
-    private func updateCheckin(area: String?) -> Bool {
-        guard let area, !area.isEmpty else { return false }
-        if area == lastCheckinArea { return true }
-        lastCheckinArea = area
+    /// True if we're still in the same ~550m grid cell we last introduced (so
+    /// skip the area intro). Coordinate-based — reverse geocoding cost 1–3s per
+    /// turn on the hot path. Records the new cell as checked-in.
+    private func updateCheckin(at loc: CLLocation?) -> Bool {
+        guard let c = loc?.coordinate else { return false }
+        let cell = String(format: "%.3f,%.3f",
+                          (c.latitude * 200).rounded() / 200,
+                          (c.longitude * 200).rounded() / 200)
+        if cell == lastCheckinArea { return true }
+        lastCheckinArea = cell
         return false
     }
 

@@ -221,6 +221,11 @@ final class MetaDATGlassesProvider: GlassesProvider {
 
     func capturePhoto() async throws -> Data {
         guard let stream else { throw GlassesError.notConnected }
+        // Instant path: the live stream already delivers what the wearer sees,
+        // at the same streaming resolution a device photo request returns —
+        // minus the multi-second round trip. Only fall back to a real photo
+        // request when no frame has arrived yet.
+        if let data = latestFrameJPEG() { return data }
         // ALL continuation handling is serialized on the main queue — the photo
         // listener and the failsafe both run there, so a resume can never be
         // missed (a set-on-background/read-on-main race could hang the turn).

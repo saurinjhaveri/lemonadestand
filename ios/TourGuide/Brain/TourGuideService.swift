@@ -33,7 +33,13 @@ final class TourGuideService {
                  backend: ReasoningBackend,
                  cacheSalt: String = "") async throws -> GuideResult {
         let intent = TourIntent.detect(userText)
-        let needsVision = imageJPEG != nil && !backend.supportsVision
+
+        // Latency: a text-only brain would need a Gemini "eyes" pass THEN its
+        // own call — two model round-trips back to back. For photo turns,
+        // answer with the vision backend directly (one call); the chosen brain
+        // still handles all text turns.
+        let effective: ReasoningBackend =
+            (imageJPEG != nil && !backend.supportsVision) ? vision : backend
 
         // On follow-ups (e.g. "tell me more") reuse the conversation instead of
         // re-fetching grounding — skip Places + Wikipedia for a faster reply.
@@ -42,14 +48,12 @@ final class TourGuideService {
         let placesLoc: CLLocation? = (!isFollowUp || intent.isArea) ? location : nil
         let factsLoc: CLLocation? = isFollowUp ? nil : location
 
-        // Kick off the independent network fetches CONCURRENTLY (instead of
-        // Places → Wikipedia → vision sequentially). The slowest one sets the
-        // latency floor rather than the sum — ~2–3s faster per "Look at this".
-        async let candidatesTask = nearbyCandidates(at: placesLoc, intent: intent)
-        async let factsTask = nearbyFacts(at: factsLoc, intent: intent)
-        async let readTask = visionRead(needsVision ? imageJPEG : nil, userText: userText, location: location)
+        // Kick off the independent fetches CONCURRENTLY and time-box them —
+        // grounding is nice-to-have; a slow tail must never stall the answer.
+        async let candidatesTask = withDeadline(2.0) { await self.nearbyCandidates(at: placesLoc, intent: intent) }
+        async let factsTask = withDeadline(2.5) { await self.nearbyFacts(at: factsLoc, intent: intent) }
 
-        let candidates = await candidatesTask
+        let candidates = (await candidatesTask) ?? []
 
         // Cache: only for fresh (non-follow-up) turns with a stable anchor.
         let allowCache = history.isEmpty
@@ -59,7 +63,7 @@ final class TourGuideService {
             return GuideResult(text: hit, usage: BrainUsage(provider: "cache"))
         }
 
-        let facts = await factsTask
+        let facts = (await factsTask) ?? []
         var grounding = TourPrompt.grounding(facts: facts, intent: intent)
 
         // On-device OCR hint: signs/labels/barcodes read from the photo — often
@@ -69,34 +73,8 @@ final class TourGuideService {
             grounding = grounding.isEmpty ? block : grounding + "\n\n" + block
         }
 
-        // "Eyes → brain" handoff: if the chosen brain can't see, fold in Gemini's
-        // read of the photo (computed in parallel above).
-        var imageForBackend = imageJPEG
-        var textForBackend = userText
-        let read = await readTask
-        if needsVision {
-            if let read, !read.isEmpty {
-                let block = "What the camera sees (from a vision model — this IS the photo the user "
-                    + "is looking at right now; treat it as if you saw it yourself and narrate "
-                    + "accordingly, do NOT say you can't see images):\n\(read)"
-                grounding = grounding.isEmpty ? block : grounding + "\n\n" + block
-                imageForBackend = nil
-                if textForBackend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    textForBackend = "Tell me about what I'm looking at."
-                }
-            } else {
-                // Vision read failed → let the vision backend narrate the image directly.
-                let result = try await vision.generate(
-                    userText: userText, imageJPEG: imageJPEG,
-                    location: location, candidates: candidates, grounding: grounding,
-                    history: history, memoryContext: memoryContext)
-                if allowCache, let key { await cache.set(result.text, for: key) }
-                return result
-            }
-        }
-
-        let result = try await backend.generate(
-            userText: textForBackend, imageJPEG: imageForBackend,
+        let result = try await effective.generate(
+            userText: userText, imageJPEG: imageJPEG,
             location: location, candidates: candidates, grounding: grounding,
             history: history, memoryContext: memoryContext)
 
@@ -105,6 +83,21 @@ final class TourGuideService {
     }
 
     // MARK: - Concurrent fetch helpers
+
+    /// Run `op` but give up after `seconds` — returns nil on timeout.
+    private func withDeadline<T: Sendable>(_ seconds: Double,
+                                           _ op: @Sendable @escaping () async -> T) async -> T? {
+        await withTaskGroup(of: T?.self) { group in
+            group.addTask { await op() }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
 
     private func nearbyCandidates(at location: CLLocation?, intent: TourIntent) async -> [LandmarkCandidate] {
         guard let location, !Config.googlePlacesAPIKey.isEmpty else { return [] }
@@ -116,13 +109,6 @@ final class TourGuideService {
         return (try? await wiki.nearbyFacts(at: location,
                                             radius: intent.isArea ? 1500 : 700,
                                             limit: intent.isArea ? 5 : 3)) ?? []
-    }
-
-    private func visionRead(_ imageJPEG: Data?, userText: String, location: CLLocation?) async -> String? {
-        guard let imageJPEG else { return nil }
-        return (try? await vision.describeScene(imageJPEG: imageJPEG, userText: userText,
-                                                location: location, candidates: []))?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// A stable key anchored to a specific landmark (identify) or area (planning).
