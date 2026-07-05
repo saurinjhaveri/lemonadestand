@@ -13,11 +13,36 @@ import Foundation
 
 #if canImport(MWDATCore)
 import UIKit
+import CoreBluetooth
 import MWDATCore
 import MWDATCamera
 #if canImport(MWDATMockDevice)
 import MWDATMockDevice
 #endif
+
+/// The DAT SDK discovers/registers glasses over BLE but never triggers the iOS
+/// Bluetooth permission prompt itself — without authorization it just reports
+/// "unavailable"/no devices. Creating a CBCentralManager forces the prompt.
+private final class BluetoothPermission: NSObject, CBCentralManagerDelegate {
+    static let shared = BluetoothPermission()
+    private var central: CBCentralManager?
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    /// Shows the Bluetooth prompt if needed and waits until iOS resolves it.
+    func ensurePrompted() async {
+        guard CBCentralManager.authorization == .notDetermined else { return }
+        await withCheckedContinuation { cont in
+            continuations.append(cont)
+            if central == nil { central = CBCentralManager(delegate: self, queue: .main) }
+        }
+    }
+
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        let pending = continuations
+        continuations.removeAll()
+        pending.forEach { $0.resume() }
+    }
+}
 
 final class MetaDATGlassesProvider: GlassesProvider {
     private(set) var connectionState: ConnectionState = .disconnected {
@@ -54,6 +79,14 @@ final class MetaDATGlassesProvider: GlassesProvider {
 
     func connect() async throws {
         connectionState = .connecting
+
+        // Bluetooth authorization is a hard prerequisite (the SDK won't ask).
+        await BluetoothPermission.shared.ensurePrompted()
+        if CBCentralManager.authorization == .denied {
+            throw GlassesError.setup("Bluetooth permission is off — enable it in "
+                + "Settings ▸ Tour Guide ▸ Bluetooth, then retry.")
+        }
+
         try? Wearables.configure()   // safe to call; ignore "already configured"
         let wearables = Wearables.shared
 
