@@ -22,3 +22,22 @@ adding files). Minimal Meta-DAT connection tester in `ios-dat-test/` on the
   keychain + Wi-Fi entitlements). The registration callback is a CUSTOM URL
   SCHEME, not a universal link.
 - Known upstream issues we've hit are catalogued in `META_DAT_FEEDBACK.md`.
+
+## Current status (June 2026 handoff)
+
+- Main app (`claude/meta-glasses-chatgpt-tour-zd2vo5`): works today via the
+  **Camera Roll bridge** (glasses photo → Meta AI sync → auto-narrate). Brains:
+  GPT-5 Nano via OpenRouter (default, throughput-routed) / Gemini (free, also
+  the "eyes" for photos) / GPT-4o. On-device QR fast path (fetch + summarize the
+  linked page aloud) and OCR grounding via Apple Vision. Wikipedia grounding,
+  landmark cache, check-in memory, Obsidian export, cost meter. Lite voice only
+  (on-device STT/TTS); push-to-talk holds through pauses.
+- DAT tester (`claude/dat-minimal-connect-test`, `ios-dat-test/`): registration
+  previously stalled (approve in Meta AI but no callback — see
+  META_DAT_FEEDBACK.md). Config now matches Meta's official sample (scheme with
+  `://`, MetaAppID "0", fb-viewapp allowlist, Bonjour, Wi-Fi/keychain
+  entitlements). NEXT: fresh-install the tester on the iPhone, verify the
+  per-glasses Developer Mode toggle, run Connect, watch for
+  `reg state → registered`. If registration lands, port the DAT **live-stream**
+  capture path into the main app (instant point-and-shoot); the provider code
+  already exists in `ios/TourGuide/Glasses/MetaDATGlassesProvider.swift` (inert).
