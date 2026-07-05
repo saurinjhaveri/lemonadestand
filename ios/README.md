@@ -67,6 +67,10 @@ Keys live in `Secrets.plist` (git-ignored), read by `Config.swift`:
 
 - `OpenRouterAPIKey` — cheap GPT-5 Nano brain (sub-cent/query; https://openrouter.ai/keys). Recommended default.
 - `GeminiAPIKey` — free Gemini brain **and** photo vision (https://aistudio.google.com/apikey).
+- `GoogleVisionAPIKey` — **best OCR for Read mode** (Google Cloud Vision document
+  OCR; ~$1.50/1,000 pages after 1,000 free/month). Enable the "Cloud Vision API"
+  at console.cloud.google.com; if your Places key's project has it enabled, the
+  Places key is used automatically.
 - `OpenAIAPIKey` — optional, paid: the ChatGPT (GPT-4o) brain + Natural TTS voice.
 - `GooglePlacesAPIKey` — optional: landmark grounding by GPS (clear it to stay 100% free).
 

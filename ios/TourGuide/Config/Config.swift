@@ -32,6 +32,12 @@ enum Config {
     static var openAIAPIKey: String { secrets["OpenAIAPIKey"] ?? "" }
     static var googlePlacesAPIKey: String { secrets["GooglePlacesAPIKey"] ?? "" }
     static var geminiAPIKey: String { secrets["GeminiAPIKey"] ?? "" }
+    /// Google Cloud Vision (document OCR for Read mode). Can be the same key as
+    /// Places if that Google Cloud project has the Cloud Vision API enabled.
+    static var googleVisionAPIKey: String {
+        let k = secrets["GoogleVisionAPIKey"] ?? ""
+        return k.isEmpty ? googlePlacesAPIKey : k
+    }
     /// Optional OpenAI Admin key (sk-admin-…) for the Costs API (real billed spend).
     static var openAIAdminKey: String { secrets["OpenAIAdminKey"] ?? "" }
 

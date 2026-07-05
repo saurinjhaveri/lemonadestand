@@ -429,25 +429,40 @@ final class AppModel: ObservableObject {
     private func readPage(_ imageJPEG: Data) async {
         isThinking = true
         defer { isThinking = false }
-        var page = await PageReader.read(imageJPEG)
-        var usedAI = false
-        // AI transcription may only REPAIR a shaky-but-real read — never invent
-        // one. Vision models "read" illegible pages by composing plausible text,
-        // so the AI text is only trusted if it agrees with most of the words the
-        // on-device OCR actually saw on the page.
-        if !page.isSparse, page.confidence < 0.35,
-           let ai = try? await pageTranscriber.transcribePage(imageJPEG),
-           !ai.uppercased().contains("UNREADABLE"), ai.count > 40 {
-            let seen = Self.contentWords(page.text)
-            let claimed = Self.contentWords(ai)
-            let overlap = seen.isEmpty ? 0
-                : Double(seen.intersection(claimed).count) / Double(seen.count)
-            if overlap >= 0.5 {
-                page = PageReader.Page(text: ai, lineCount: page.lineCount, confidence: 1)
-                usedAI = true
+
+        var text: String?
+        var tag = ""
+
+        // 1) Google Cloud Vision document OCR when configured — purpose-built
+        //    for dense pages and imperfect scans, verbatim by construction.
+        if !Config.googleVisionAPIKey.isEmpty {
+            if let cloud = try? await CloudOCR.transcribe(imageJPEG), cloud.count > 40 {
+                text = cloud
+                tag = " · Cloud"
             }
         }
-        if page.isSparse {
+
+        // 2) On-device OCR (free/offline), with verified AI repair for shaky
+        //    reads: AI may only repair a real read, and only when it agrees with
+        //    most of the words the on-device OCR actually saw — never invent.
+        if text == nil {
+            var page = await PageReader.read(imageJPEG)
+            if !page.isSparse, page.confidence < 0.35,
+               let ai = try? await pageTranscriber.transcribePage(imageJPEG),
+               !ai.uppercased().contains("UNREADABLE"), ai.count > 40 {
+                let seen = Self.contentWords(page.text)
+                let claimed = Self.contentWords(ai)
+                let overlap = seen.isEmpty ? 0
+                    : Double(seen.intersection(claimed).count) / Double(seen.count)
+                if overlap >= 0.5 {
+                    page = PageReader.Page(text: ai, lineCount: page.lineCount, confidence: 1)
+                    tag = " · AI"
+                }
+            }
+            if !page.isSparse { text = page.text }
+        }
+
+        guard let text else {
             let tip = glassesState == .connected
                 ? "I couldn't read much there. Hold the page about arm's length away — too "
                   + "close goes out of focus — keep it steady, or press the capture button "
@@ -457,19 +472,18 @@ final class AppModel: ObservableObject {
             deviceSpeaker.speak(tip)
             return
         }
+
         readPageCount += 1
-        // Show source resolution (+ AI marker) — tells us instantly whether a
-        // bad read came from a low-res frame or genuinely hard print.
-        let aiTag = usedAI ? " · AI" : ""
+        // Show source resolution + engine — makes any bad read attributable.
         if let dims = UIImage(data: imageJPEG)?.size {
-            transcript = String(format: "(page %d · %.0f×%.0f%@)", readPageCount, dims.width, dims.height, aiTag)
+            transcript = String(format: "(page %d · %.0f×%.0f%@)", readPageCount, dims.width, dims.height, tag)
         } else {
-            transcript = "(page \(readPageCount)\(aiTag))"
+            transcript = "(page \(readPageCount)\(tag))"
         }
-        lastNarration = page.text
+        lastNarration = text
         // Long-form reading always uses the free on-device voice — a whole page
         // through a paid TTS API would cost real money and hit size limits.
-        deviceSpeaker.speak(page.text)
+        deviceSpeaker.speak(text)
     }
 
     /// Run the brain pipeline (memory recall + auto-fallback), speak the answer,
