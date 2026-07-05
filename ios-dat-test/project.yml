@@ -23,33 +23,41 @@ targets:
     platform: iOS
     sources:
       - DATTest
-    # Needed so iOS routes the registration RETURN universal link
-    # (https://saurinjhaveri.github.io/...) back to this app. Requires paid Apple
-    # account + the AASA hosted on that domain.
+    # Entitlements per Meta's official CameraAccess sample (keychain group for
+    # the SDK's registration record; Wi-Fi entitlements for the glasses' data
+    # transfer). The registration callback is a CUSTOM SCHEME, not a universal
+    # link, so no Associated Domains are needed.
     entitlements:
       path: DATTest/DATTest.entitlements
       properties:
-        com.apple.developer.associated-domains:
-          # ?mode=developer makes iOS fetch the AASA directly from the domain
-          # (bypasses Apple's CDN cache) — needed while the file is freshly hosted.
-          # Requires Settings ▸ Developer ▸ Associated Domains Development = ON.
-          - applinks:saurinjhaveri.github.io?mode=developer
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(CFBundleIdentifier)
+        com.apple.developer.networking.wifi-info: true
+        com.apple.developer.networking.HotspotConfiguration: true
     info:
       path: DATTest/Info.plist
       properties:
         CFBundleDisplayName: DAT Test
         NSCameraUsageDescription: "Used to capture from the glasses camera."
-        NSBluetoothAlwaysUsageDescription: "Used to connect to your glasses."
-        NSLocalNetworkUsageDescription: "Used to connect to your glasses over the local network."
+        NSBluetoothAlwaysUsageDescription: "Needed to connect to Meta AI Glasses"
+        NSLocalNetworkUsageDescription: "This allows your phone to find and connect to your glasses over Wi-Fi."
         NSLocationWhenInUseUsageDescription: "Used by the toolkit."
-        UIBackgroundModes: [audio, bluetooth-peripheral, external-accessory]
+        # Required for local-network discovery — without the Bonjour services
+        # list, iOS silently blocks the glasses' Wi-Fi transfer (official sample).
+        NSBonjourServices: [_bonjour._tcp]
+        # Lets the SDK detect + open the Meta AI app via canOpenURL (AGENTS.md).
+        LSApplicationQueriesSchemes: [fb-viewapp]
+        # Background modes per the official CameraAccess sample.
+        UIBackgroundModes: [processing, bluetooth-central, bluetooth-peripheral]
         UILaunchScreen: {}
-        UISupportedExternalAccessoryProtocols: [com.meta.ar.wearable]
         CFBundleURLTypes:
           - CFBundleURLSchemes: [tourguide]
         MWDAT:
-          AppLinkURLScheme: tourguide
-          # Developer Mode: do NOT set MetaAppID.
+          # MUST include '://' — Meta AI builds the registration callback from
+          # this exact string (official sample uses "cameraaccess://").
+          AppLinkURLScheme: "tourguide://"
+          # Developer Mode uses MetaAppID "0" (per Meta's plugin docs), not absent.
+          MetaAppID: "0"
     settings:
       base:
         # Same bundle id as the main app so Developer Mode trust carries over.
