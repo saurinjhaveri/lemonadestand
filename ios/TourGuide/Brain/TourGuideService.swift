@@ -29,6 +29,7 @@ final class TourGuideService {
                  location: CLLocation?,
                  history: [ChatTurn],
                  memoryContext: String,
+                 sceneText: String = "",
                  backend: ReasoningBackend,
                  cacheSalt: String = "") async throws -> GuideResult {
         let intent = TourIntent.detect(userText)
@@ -60,6 +61,13 @@ final class TourGuideService {
 
         let facts = await factsTask
         var grounding = TourPrompt.grounding(facts: facts, intent: intent)
+
+        // On-device OCR hint: signs/labels/barcodes read from the photo — often
+        // the strongest identification evidence, and it cost nothing.
+        if !sceneText.isEmpty {
+            let block = "Text read from the scene by on-device OCR (signs/labels in the photo):\n\(sceneText)"
+            grounding = grounding.isEmpty ? block : grounding + "\n\n" + block
+        }
 
         // "Eyes → brain" handoff: if the chosen brain can't see, fold in Gemini's
         // read of the photo (computed in parallel above).

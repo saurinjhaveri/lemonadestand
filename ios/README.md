@@ -19,11 +19,20 @@ manually.
 
 ## How an answer is built
 
-`photo / question → Gemini "eyes" (if the brain can't see) → chosen brain writes
-the narration → spoken`, grounded by:
+Point at **anything** — landmarks, plants, products, food, menus, signs — not
+just tourist sights.
+
+`photo / question → on-device scan (QR + OCR, free) → Gemini "eyes" (if the
+brain can't see) → chosen brain writes the narration → spoken`, grounded by:
+- **On-device Vision** (Apple framework): QR/barcode detection + sign/label OCR — free, instant.
 - **Google Places** (nearby landmark candidates by GPS) — optional.
 - **Wikipedia** (verified facts → less hallucination).
 - **Memory** (traveler profile + "been here before" + recent turns).
+
+**QR codes are a fast path:** if the photo contains a QR code linking to a
+website, the app fetches the page, strips it to readable text, and the brain
+summarizes it aloud (prices, hours, menu highlights…). Non-URL codes (wifi,
+plain text) are read out directly — no cloud call at all.
 
 ## Layout
 

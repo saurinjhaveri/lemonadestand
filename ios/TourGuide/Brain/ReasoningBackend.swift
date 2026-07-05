@@ -76,7 +76,7 @@ enum TourPrompt {
     static func userText(_ userText: String, location: CLLocation?,
                          candidates: [LandmarkCandidate], grounding: String = "") -> String {
         let question = userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "Identify what's in this photo and tell me about it. If the photo doesn't clearly show a place/landmark/artwork, say you can't tell and ask me what I'm looking at — do NOT guess based on my GPS area."
+            ? "Identify what's in this photo — a place, object, plant, product, artwork, sign, menu, or anything else — and tell me about it. If you can't tell what it shows, say so and ask me — do NOT guess a landmark from my GPS area."
             : userText
         var blocks = [context(location: location, candidates: candidates)]
         if !grounding.isEmpty { blocks.append(grounding) }

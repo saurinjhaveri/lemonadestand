@@ -256,6 +256,18 @@ final class AppModel: ObservableObject {
         isThinking = true
         defer { isThinking = false }
 
+        // On-device scan first (free, instant): QR codes take a dedicated fast
+        // path; readable signs/labels become a grounding hint for the brain.
+        var sceneText = ""
+        if let imageJPEG {
+            let scan = await SceneScanner.scan(imageJPEG)
+            if let qr = scan.qrPayloads.first {
+                await respondToQR(qr)
+                return
+            }
+            sceneText = scan.hintText
+        }
+
         let loc = resolvedLocation()
         let mark = await placemark(for: loc)
         let revisit = updateCheckin(area: mark?.subLocality ?? mark?.locality)
@@ -272,6 +284,7 @@ final class AppModel: ObservableObject {
             result = try await service.narrate(
                 userText: userText, imageJPEG: imageJPEG,
                 location: loc, history: history, memoryContext: mem,
+                sceneText: sceneText,
                 backend: primary, cacheSalt: cacheSalt(primary))
         } catch {
             if autoFallback {
@@ -279,6 +292,7 @@ final class AppModel: ObservableObject {
                     result = try await service.narrate(
                         userText: userText, imageJPEG: imageJPEG,
                         location: loc, history: history, memoryContext: mem,
+                        sceneText: sceneText,
                         backend: secondary, cacheSalt: cacheSalt(secondary))
                 } catch let e2 {
                     ok = false
@@ -295,18 +309,26 @@ final class AppModel: ObservableObject {
             }
         }
 
+        await deliver(result, ok: ok,
+                      said: userText.isEmpty ? "(looked at something)" : userText,
+                      loc: loc, placeName: mark?.name ?? mark?.locality,
+                      fallbackProvider: primary.displayName)
+    }
+
+    /// Speak + record a finished turn (shared by the normal and QR paths).
+    private func deliver(_ result: GuideResult, ok: Bool, said: String,
+                         loc: CLLocation?, placeName: String?,
+                         fallbackProvider: String) async {
         lastNarration = result.text
         activeSpeaker.speak(result.text)
 
-        let said = userText.isEmpty ? "(looked at something)" : userText
         history.append(ChatTurn(role: .user, text: said))
         history.append(ChatTurn(role: .assistant, text: result.text))
         if history.count > 8 { history.removeFirst(history.count - 8) }
 
         if ok {
-            let name = mark?.name ?? mark?.locality
             let record = MemoryRecord(
-                placeName: name,
+                placeName: placeName,
                 latitude: loc?.coordinate.latitude,
                 longitude: loc?.coordinate.longitude,
                 userText: said, guideText: result.text)
@@ -320,8 +342,67 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(lifetimeCostUSD, forKey: "lifetimeCostUSD")
         let tokens = result.usage.inputTokens + result.usage.outputTokens
         lastTurn = String(format: "%@ · %d tok · ~$%.4f",
-                          result.usage.provider.isEmpty ? primary.displayName : result.usage.provider,
+                          result.usage.provider.isEmpty ? fallbackProvider : result.usage.provider,
                           tokens, cost)
+    }
+
+    // MARK: - QR fast path
+
+    /// A QR code in the photo takes priority: URL codes → fetch the page and
+    /// summarize it aloud; other payloads (wifi/plain text) are read out as-is.
+    private func respondToQR(_ payload: String) async {
+        transcript = "(scanned a QR code)"
+        let loc = resolvedLocation()
+
+        guard let url = WebPageReader.url(fromQRPayload: payload) else {
+            let text = "This QR code isn't a website. It contains: \(payload)"
+            await deliver(GuideResult(text: text, usage: BrainUsage()), ok: true,
+                          said: "(scanned a QR code)", loc: loc, placeName: nil,
+                          fallbackProvider: "on-device")
+            return
+        }
+
+        guard let page = await WebPageReader.fetchReadableText(from: url) else {
+            let text = "I found a QR code linking to \(url.host ?? url.absoluteString), "
+                + "but I couldn't load the page."
+            await deliver(GuideResult(text: text, usage: BrainUsage()), ok: false,
+                          said: "(scanned a QR code)", loc: loc, placeName: nil,
+                          fallbackProvider: "on-device")
+            return
+        }
+
+        let mem = await buildDirectives(near: loc, revisit: true)   // no area intro for QR reads
+        let prompt = """
+        I scanned a QR code linking to \(url.absoluteString). Below is the page's text. \
+        Tell me, spoken-style, what this page is and the key useful information \
+        (headline facts, prices, hours, instructions, menu highlights — whatever applies). \
+        Don't read the URL aloud.
+
+        PAGE TEXT:
+        \(page)
+        """
+
+        var result: GuideResult
+        var ok = true
+        do {
+            result = try await backend.generate(
+                userText: prompt, imageJPEG: nil, location: nil, candidates: [],
+                grounding: "", history: [], memoryContext: mem)
+        } catch {
+            do {
+                result = try await fallbackBackend.generate(
+                    userText: prompt, imageJPEG: nil, location: nil, candidates: [],
+                    grounding: "", history: [], memoryContext: mem)
+            } catch let e2 {
+                ok = false
+                result = GuideResult(
+                    text: "I loaded \(url.host ?? "the page") but couldn't summarize it: \(e2.localizedDescription)",
+                    usage: BrainUsage())
+            }
+        }
+        await deliver(result, ok: ok,
+                      said: "(scanned a QR code → \(url.host ?? url.absoluteString))",
+                      loc: loc, placeName: url.host, fallbackProvider: backend.displayName)
     }
 
     /// Cache answers per brain + length so different settings don't collide.
