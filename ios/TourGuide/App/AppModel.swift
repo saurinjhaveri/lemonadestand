@@ -409,7 +409,10 @@ final class AppModel: ObservableObject {
         if history.count > 8 { history.removeFirst(history.count - 8) }
 
         if ok {
-            let name = placeName ?? (await placemark(for: loc)).flatMap { $0.name ?? $0.locality }
+            var name = placeName
+            if name == nil, let mark = await placemark(for: loc) {
+                name = mark.name ?? mark.locality
+            }
             let record = MemoryRecord(
                 placeName: name,
                 latitude: loc?.coordinate.latitude,
