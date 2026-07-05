@@ -8,6 +8,7 @@ import CoreLocation
 @MainActor
 final class AppModel: ObservableObject {
     @Published var voiceState: ConnectionState = .disconnected   // mic/speech readiness
+    @Published var glassesState: ConnectionState = .disconnected // DAT live stream
     @Published var isListening = false
     @Published var isThinking = false
     @Published var transcript = ""
@@ -67,6 +68,21 @@ final class AppModel: ObservableObject {
     private var history: [ChatTurn] = []
 
     let location = LocationManager()
+
+    // Live glasses connection (Meta DAT). Optional: the Camera Roll bridge keeps
+    // working without it; when connected, capture is instant from the stream.
+    private let glasses: GlassesProvider = AppModel.makeGlassesProvider()
+    private static func makeGlassesProvider() -> GlassesProvider {
+        #if canImport(MWDATCore)
+        #if targetEnvironment(simulator)
+        return MetaDATGlassesProvider(useMockDevice: true)   // simulated Ray-Ban
+        #else
+        return MetaDATGlassesProvider(useMockDevice: false)  // real glasses
+        #endif
+        #else
+        return MockGlassesProvider()
+        #endif
+    }
 
     private let speech = SpeechRecognizer()
     private let deviceSpeaker = DeviceSpeaker()
@@ -134,6 +150,17 @@ final class AppModel: ObservableObject {
         }
         deviceSpeaker.voiceIdentifier = deviceVoiceID.isEmpty ? nil : deviceVoiceID
 
+        glasses.onConnectionStateChange = { [weak self] state in
+            Task { @MainActor in self?.glassesState = state }
+        }
+        // Photos delivered by the live DAT stream (app-requested captures resolve
+        // their own continuation; anything unsolicited lands here).
+        glasses.onPhotoCaptured = { [weak self] data in
+            Task { @MainActor in
+                guard let self, !self.isThinking else { return }
+                await self.respond(userText: "", imageJPEG: data)
+            }
+        }
         // A new photo in the Camera Roll (e.g. synced from the glasses) → narrate
         // it hands-free. Acknowledge the instant it's detected (before the image
         // even loads) so the wait feels short.
@@ -176,10 +203,23 @@ final class AppModel: ObservableObject {
         try? AudioSessionManager.shared.configureForVoiceChat()
         let ok = await speech.requestAuthorization()
         voiceState = ok ? .connected : .failed("Speech/mic permission denied")
+        // Live glasses stream is a bonus, not a requirement — connect in the
+        // background; the Camera Roll bridge works either way.
+        Task { await retryGlasses() }
+    }
+
+    /// Attempt (or re-attempt) the live DAT glasses connection.
+    func retryGlasses() async {
+        do {
+            try await glasses.connect()
+        } catch {
+            glassesState = .failed(error.localizedDescription)
+        }
     }
 
     func endSession() {
         stopSpeaking()
+        glasses.disconnect()
         AudioSessionManager.shared.deactivate()
         location.stop()
         photoWatcher.stop()
@@ -224,7 +264,25 @@ final class AppModel: ObservableObject {
     func endTalking() {
         isListening = false
         let text = speech.finish()
-        Task { await self.respond(userText: text, imageJPEG: nil) }
+        Task {
+            // Hands-free point-and-shoot: if the live stream is up and you're
+            // asking about what you SEE, grab a frame instantly — no button.
+            if self.glassesState == .connected, Self.isLookIntent(text),
+               let frame = try? await self.glasses.capturePhoto() {
+                await self.respond(userText: text, imageJPEG: frame)
+            } else {
+                await self.respond(userText: text, imageJPEG: nil)
+            }
+        }
+    }
+
+    /// "What am I looking at?"-style asks that should trigger a live capture.
+    private static func isLookIntent(_ t: String) -> Bool {
+        let s = t.lowercased()
+        guard !s.isEmpty else { return false }
+        return ["look at this", "looking at", "what is this", "what's this", "whats this",
+                "what is that", "what's that", "whats that", "see this", "check this out",
+                "tell me about this", "read this", "scan this"].contains { s.contains($0) }
     }
 
     /// Typed prompt: tell the guide where you are / what you see.
@@ -247,9 +305,14 @@ final class AppModel: ObservableObject {
 
     // MARK: - "Look at this" (manual photo)
 
-    /// Pick a photo to identify (camera on device, library otherwise). The
-    /// hands-free path is the Camera Roll watcher; this is the manual trigger.
+    /// "Look at this": instant frame from the live glasses stream when connected;
+    /// otherwise pick a photo (camera on device, library otherwise).
     func lookAtThis() async {
+        if glassesState == .connected, let frame = try? await glasses.capturePhoto() {
+            transcript = "(looked through the glasses)"
+            await respond(userText: "", imageJPEG: frame)
+            return
+        }
         isPickingImage = true
     }
 

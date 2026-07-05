@@ -1,6 +1,6 @@
 name: TourGuide
 options:
-  bundleIdPrefix: com.yourorg
+  bundleIdPrefix: com.saurin
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
@@ -25,6 +25,17 @@ targets:
     platform: iOS
     sources:
       - TourGuide
+    # Entitlements per Meta's official CameraAccess sample: keychain group holds
+    # the DAT registration record (shared with the DAT tester — same bundle id,
+    # so registration carries over); Wi-Fi entitlements for the glasses' data
+    # transfer. The registration callback is a CUSTOM SCHEME, not a universal link.
+    entitlements:
+      path: TourGuide/Resources/TourGuide.entitlements
+      properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(CFBundleIdentifier)
+        com.apple.developer.networking.wifi-info: true
+        com.apple.developer.networking.HotspotConfiguration: true
     # Full Info.plist is generated from here so permissions can't be dropped.
     # API keys are NOT here — they live in Secrets.plist (read by Config.swift).
     info:
@@ -38,7 +49,7 @@ targets:
         NSSpeechRecognitionUsageDescription: "Used to understand what you ask your tour guide (on-device in Lite mode)."
         NSLocationWhenInUseUsageDescription: "Used to identify nearby landmarks and tailor your tour to where you are."
         NSCameraUsageDescription: "Used to capture what you are looking at so the guide can identify it."
-        UIBackgroundModes: [audio]
+        NSPhotoLibraryUsageDescription: "Used to read new photos (e.g. synced from your glasses) so the guide can narrate them."
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -50,10 +61,34 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSPhotoLibraryUsageDescription: "Used to read new photos (e.g. synced from your glasses) so the guide can narrate them."
+        # --- Meta DAT (live glasses stream) — config per official sample ---
+        NSBluetoothAlwaysUsageDescription: "Needed to connect to Meta AI Glasses"
+        NSLocalNetworkUsageDescription: "This allows your phone to find and connect to your glasses over Wi-Fi."
+        NSBonjourServices: [_bonjour._tcp]
+        LSApplicationQueriesSchemes: [fb-viewapp]
+        UIBackgroundModes: [audio, processing, bluetooth-central, bluetooth-peripheral]
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [tourguide]
+        MWDAT:
+          # MUST include '://' — Meta AI builds the registration callback from this.
+          AppLinkURLScheme: "tourguide://"
+          # Developer Mode uses MetaAppID "0" (per Meta's plugin docs).
+          MetaAppID: "0"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.saurin.tourguide
         SWIFT_VERSION: "5.0"   # Swift 5 language mode; adopt Swift 6 concurrency later
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: 5P57QNRV6C
+    dependencies:
+      - package: MetaWearablesDAT
+        product: MWDATCore
+      - package: MetaWearablesDAT
+        product: MWDATCamera
+      - package: MetaWearablesDAT
+        product: MWDATMockDevice
+
+packages:
+  MetaWearablesDAT:
+    url: https://github.com/facebook/meta-wearables-dat-ios
+    from: 0.7.0

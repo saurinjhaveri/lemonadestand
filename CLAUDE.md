@@ -25,19 +25,21 @@ adding files). Minimal Meta-DAT connection tester in `ios-dat-test/` on the
 
 ## Current status (June 2026 handoff)
 
-- Main app (`claude/meta-glasses-chatgpt-tour-zd2vo5`): works today via the
-  **Camera Roll bridge** (glasses photo → Meta AI sync → auto-narrate). Brains:
-  GPT-5 Nano via OpenRouter (default, throughput-routed) / Gemini (free, also
-  the "eyes" for photos) / GPT-4o. On-device QR fast path (fetch + summarize the
-  linked page aloud) and OCR grounding via Apple Vision. Wikipedia grounding,
-  landmark cache, check-in memory, Obsidian export, cost meter. Lite voice only
-  (on-device STT/TTS); push-to-talk holds through pauses.
-- DAT tester (`claude/dat-minimal-connect-test`, `ios-dat-test/`): registration
-  previously stalled (approve in Meta AI but no callback — see
-  META_DAT_FEEDBACK.md). Config now matches Meta's official sample (scheme with
-  `://`, MetaAppID "0", fb-viewapp allowlist, Bonjour, Wi-Fi/keychain
-  entitlements). NEXT: fresh-install the tester on the iPhone, verify the
-  per-glasses Developer Mode toggle, run Connect, watch for
-  `reg state → registered`. If registration lands, port the DAT **live-stream**
-  capture path into the main app (instant point-and-shoot); the provider code
-  already exists in `ios/TourGuide/Glasses/MetaDATGlassesProvider.swift` (inert).
+- **DAT registration WORKS** (confirmed on device via `ios-dat-test/`). Root
+  cause of the weeks-long stall: config had to match Meta's official sample —
+  `AppLinkURLScheme` WITH `://`, `MetaAppID` "0" in Developer Mode,
+  `LSApplicationQueriesSchemes` fb-viewapp, `NSBonjourServices` `_bonjour._tcp`,
+  keychain-access-groups + Wi-Fi entitlements. Callback is the CUSTOM SCHEME.
+- Main app (`claude/meta-glasses-chatgpt-tour-zd2vo5`) now has the **live DAT
+  stream wired in**: same sample-aligned config (registration carries over via
+  the shared bundle id + keychain group), background connect on session start,
+  "Look at this" and voice look-intents ("what am I looking at") grab an instant
+  frame from the stream, with a 4s failsafe that answers from the latest cached
+  video frame. **Camera Roll bridge remains as fallback** (hardware-button
+  photos still arrive that way — DAT can't see the capture button).
+- Brains: GPT-5 Nano via OpenRouter (default) / Gemini (free; also "eyes" for
+  photos) / GPT-4o. On-device QR fast path + OCR grounding, Wikipedia grounding,
+  landmark cache, check-in memory, Obsidian export, cost meter, Lite voice.
+- NEXT: on-device test of live capture end-to-end; then consider resolution
+  (.medium can beat .high per-frame per Meta docs), wake-free triggers, and the
+  Phase-4 backend (keys off-device) before sharing builds.

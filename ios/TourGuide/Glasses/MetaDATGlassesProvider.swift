@@ -12,6 +12,7 @@ import Foundation
 // compiler will point right at it — adjust and rebuild.
 
 #if canImport(MWDATCore)
+import UIKit
 import MWDATCore
 import MWDATCamera
 #if canImport(MWDATMockDevice)
@@ -34,7 +35,18 @@ final class MetaDATGlassesProvider: GlassesProvider {
     private var session: DeviceSession?
     private var stream: MWDATCamera.Stream?
     private var photoToken: (any AnyListenerToken)?
+    private var frameToken: (any AnyListenerToken)?
     private var photoContinuation: CheckedContinuation<Data, Error>?
+
+    // Latest live-stream frame, kept for instant capture: if a photo request is
+    // slow, we answer from the stream instead — "look at this" never hangs.
+    private let frameLock = NSLock()
+    private var _latestFrame: MWDATCamera.VideoFrame?
+
+    private func latestFrameJPEG() -> Data? {
+        frameLock.lock(); let frame = _latestFrame; frameLock.unlock()
+        return frame?.makeUIImage()?.jpegData(compressionQuality: 0.7)
+    }
 
     init(useMockDevice: Bool = false) {
         self.useMockDevice = useMockDevice
@@ -129,14 +141,21 @@ final class MetaDATGlassesProvider: GlassesProvider {
         // app-requested capture, resume it; otherwise it's a hands-free capture
         // — forward it to onPhotoCaptured so the app narrates it automatically.
         photoToken = stream.photoDataPublisher.listen { [weak self] photoData in
-            guard let self else { return }
-            let data = photoData.data
-            if let cont = self.photoContinuation {
-                self.photoContinuation = nil
-                cont.resume(returning: data)
-            } else {
-                DispatchQueue.main.async { self.onPhotoCaptured?(data) }
+            // Serialize continuation handling on main to avoid racing the failsafe.
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let cont = self.photoContinuation {
+                    self.photoContinuation = nil
+                    cont.resume(returning: photoData.data)
+                } else {
+                    self.onPhotoCaptured?(photoData.data)
+                }
             }
+        }
+        // Keep the newest live frame around for instant/fallback capture.
+        frameToken = stream.videoFramePublisher.listen { [weak self] frame in
+            guard let self else { return }
+            self.frameLock.lock(); self._latestFrame = frame; self.frameLock.unlock()
         }
         try await withTimeout(20, step: "starting the camera") { await stream.start() }
         self.stream = stream
@@ -146,12 +165,14 @@ final class MetaDATGlassesProvider: GlassesProvider {
     func disconnect() {
         let stream = self.stream
         let session = self.session
-        let token = self.photoToken
+        let tokens: [(any AnyListenerToken)?] = [photoToken, frameToken]
         self.stream = nil
         self.session = nil
         self.photoToken = nil
+        self.frameToken = nil
+        frameLock.lock(); _latestFrame = nil; frameLock.unlock()
         Task {
-            await token?.cancel()
+            for t in tokens { await t?.cancel() }
             await stream?.stop()
             session?.stop()
         }
@@ -163,6 +184,17 @@ final class MetaDATGlassesProvider: GlassesProvider {
         return try await withCheckedThrowingContinuation { cont in
             self.photoContinuation = cont
             stream.capturePhoto(format: .jpeg)
+            // Failsafe: if the photo doesn't arrive promptly, answer with the
+            // newest live-stream frame instead of hanging the turn.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                guard let self, let pending = self.photoContinuation else { return }
+                self.photoContinuation = nil
+                if let data = self.latestFrameJPEG() {
+                    pending.resume(returning: data)
+                } else {
+                    pending.resume(throwing: GlassesError.captureFailed)
+                }
+            }
         }
     }
 

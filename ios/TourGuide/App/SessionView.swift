@@ -15,6 +15,9 @@ struct SessionView: View {
             if model.voiceState.isFailure {
                 micErrorBanner
             }
+            if model.glassesState.isFailure {
+                glassesErrorBanner
+            }
             conversation
             controls
         }
@@ -42,6 +45,9 @@ struct SessionView: View {
     private var statusBar: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
+                StatusPill(icon: "eyeglasses", label: "GLASSES",
+                           detail: model.glassesState == .connected ? "Live" : model.glassesState.short,
+                           color: model.glassesState.pillColor)
                 StatusPill(icon: "photo.on.rectangle.angled", label: "PHOTOS",
                            detail: model.autoNarratePhotos ? "Watching" : "Off",
                            color: model.autoNarratePhotos ? .green : .secondary)
@@ -61,6 +67,23 @@ struct SessionView: View {
                 .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var glassesErrorBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text((model.glassesState.failureMessage ?? "Live glasses connection failed.")
+                     + " Photos still work via the Camera Roll bridge.")
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button { Task { await model.retryGlasses() } } label: {
+                Label("Retry live connection", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(ChipButtonStyle())
+        }
+        .card(12)
     }
 
     private var micErrorBanner: some View {
