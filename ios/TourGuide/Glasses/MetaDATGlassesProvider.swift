@@ -203,6 +203,13 @@ final class MetaDATGlassesProvider: GlassesProvider {
         self.session = nil
         self.photoToken = nil
         self.frameToken = nil
+        // Don't strand a pending capture await.
+        DispatchQueue.main.async {
+            if let cont = self.photoContinuation {
+                self.photoContinuation = nil
+                cont.resume(throwing: GlassesError.notConnected)
+            }
+        }
         frameLock.lock(); _latestFrame = nil; frameLock.unlock()
         Task {
             for t in tokens { await t?.cancel() }
@@ -214,18 +221,36 @@ final class MetaDATGlassesProvider: GlassesProvider {
 
     func capturePhoto() async throws -> Data {
         guard let stream else { throw GlassesError.notConnected }
+        // ALL continuation handling is serialized on the main queue — the photo
+        // listener and the failsafe both run there, so a resume can never be
+        // missed (a set-on-background/read-on-main race could hang the turn).
         return try await withCheckedThrowingContinuation { cont in
-            self.photoContinuation = cont
-            stream.capturePhoto(format: .jpeg)
-            // Failsafe: if the photo doesn't arrive promptly, answer with the
-            // newest live-stream frame instead of hanging the turn.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-                guard let self, let pending = self.photoContinuation else { return }
-                self.photoContinuation = nil
-                if let data = self.latestFrameJPEG() {
-                    pending.resume(returning: data)
-                } else {
-                    pending.resume(throwing: GlassesError.captureFailed)
+            DispatchQueue.main.async {
+                // A second tap must not orphan the pending capture.
+                if let old = self.photoContinuation {
+                    self.photoContinuation = nil
+                    if let data = self.latestFrameJPEG() { old.resume(returning: data) }
+                    else { old.resume(throwing: GlassesError.captureFailed) }
+                }
+                self.photoContinuation = cont
+                let requested = stream.capturePhoto(format: .jpeg)
+                if !requested {
+                    // Device refused the request — answer from the live frame now.
+                    self.photoContinuation = nil
+                    if let data = self.latestFrameJPEG() { cont.resume(returning: data) }
+                    else { cont.resume(throwing: GlassesError.captureFailed) }
+                    return
+                }
+                // Failsafe: if the photo doesn't arrive promptly, answer with the
+                // newest live-stream frame instead of hanging the turn.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                    guard let self, let pending = self.photoContinuation else { return }
+                    self.photoContinuation = nil
+                    if let data = self.latestFrameJPEG() {
+                        pending.resume(returning: data)
+                    } else {
+                        pending.resume(throwing: GlassesError.captureFailed)
+                    }
                 }
             }
         }

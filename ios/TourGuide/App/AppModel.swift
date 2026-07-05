@@ -308,9 +308,17 @@ final class AppModel: ObservableObject {
     /// "Look at this": instant frame from the live glasses stream when connected;
     /// otherwise pick a photo (camera on device, library otherwise).
     func lookAtThis() async {
-        if glassesState == .connected, let frame = try? await glasses.capturePhoto() {
-            transcript = "(looked through the glasses)"
-            await respond(userText: "", imageJPEG: frame)
+        if glassesState == .connected {
+            transcript = "(looking through the glasses)"
+            isThinking = true                       // immediate feedback during capture
+            let frame = try? await glasses.capturePhoto()
+            isThinking = false
+            if let frame {
+                await respond(userText: "", imageJPEG: frame)
+            } else {
+                lastNarration = "Couldn't grab a frame from the glasses — try again."
+                activeSpeaker.speak("Sorry, I couldn't grab that. Try again.")
+            }
             return
         }
         isPickingImage = true
