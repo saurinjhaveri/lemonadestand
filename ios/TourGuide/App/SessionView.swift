@@ -162,7 +162,9 @@ struct SessionView: View {
 
     private var controls: some View {
         VStack(spacing: 10) {
-            if !model.lastNarration.isEmpty && !model.isThinking {
+            if model.readModeActive {
+                readingChips
+            } else if !model.lastNarration.isEmpty && !model.isThinking {
                 followUps
             }
             askField
@@ -173,11 +175,24 @@ struct SessionView: View {
                 }
                 .buttonStyle(ChipButtonStyle())
 
+                Button { Task { await model.startReading() } } label: {
+                    Label("Read", systemImage: "book")
+                }
+                .buttonStyle(ChipButtonStyle())
+
                 Button(role: .destructive) { model.stopSpeaking() } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
                 .buttonStyle(ChipButtonStyle(tint: .red))
             }
+        }
+    }
+
+    /// Read-mode page flow: also voice-driven ("next page" / "stop reading").
+    private var readingChips: some View {
+        HStack(spacing: 8) {
+            followChip("Next page", "arrow.right.circle") { Task { await model.captureAndReadPage() } }
+            followChip("Done reading", "checkmark") { model.stopReading() }
         }
     }
 

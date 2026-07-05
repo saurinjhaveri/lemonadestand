@@ -15,6 +15,9 @@ final class AppModel: ObservableObject {
     @Published var lastNarration = ""
     @Published var isPickingImage = false
     @Published var photoWatchStatus = ""
+    /// Read mode: narrating pages (book/newspaper/letter) via on-device OCR.
+    @Published private(set) var readModeActive = false
+    private var readPageCount = 0
 
     // Settings (persisted).
     @Published var backendChoice: BackendChoice {
@@ -175,7 +178,13 @@ final class AppModel: ObservableObject {
         photoWatcher.onNewPhoto = { [weak self] data in
             Task { @MainActor in
                 guard let self, !self.isThinking else { return }
-                await self.respond(userText: "", imageJPEG: data)
+                if self.readModeActive {
+                    // Hardware-button photos are full-resolution — the sharpest
+                    // possible page scan for Read mode.
+                    await self.readPage(data)
+                } else {
+                    await self.respond(userText: "", imageJPEG: data)
+                }
             }
         }
     }
@@ -264,16 +273,33 @@ final class AppModel: ObservableObject {
     func endTalking() {
         isListening = false
         let text = speech.finish()
-        Task {
-            // Hands-free point-and-shoot: if the live stream is up and you're
-            // asking about what you SEE, grab a frame instantly — no button.
-            if self.glassesState == .connected, Self.isLookIntent(text),
-               let frame = try? await self.glasses.capturePhoto() {
-                await self.respond(userText: text, imageJPEG: frame)
-            } else {
-                await self.respond(userText: text, imageJPEG: nil)
+        Task { await route(text) }
+    }
+
+    /// Route a spoken/typed turn: read-mode commands first, then read/look
+    /// intents, then the normal conversation pipeline.
+    private func route(_ text: String) async {
+        if readModeActive {
+            if Self.isDoneReadingIntent(text) { stopReading(); return }
+            if text.trimmingCharacters(in: .whitespaces).isEmpty
+                || Self.isNextPageIntent(text) || Self.isReadIntent(text) {
+                await captureAndReadPage()
+                return
             }
+            readModeActive = false   // a real question mid-read → answer it normally
         }
+        if Self.isReadIntent(text) {
+            await startReading()
+            return
+        }
+        // Hands-free point-and-shoot: if the live stream is up and you're
+        // asking about what you SEE, grab a frame instantly — no button.
+        if glassesState == .connected, Self.isLookIntent(text),
+           let frame = try? await glasses.capturePhoto() {
+            await respond(userText: text, imageJPEG: frame)
+            return
+        }
+        await respond(userText: text, imageJPEG: nil)
     }
 
     /// "What am I looking at?"-style asks that should trigger a live capture.
@@ -282,7 +308,26 @@ final class AppModel: ObservableObject {
         guard !s.isEmpty else { return false }
         return ["look at this", "looking at", "what is this", "what's this", "whats this",
                 "what is that", "what's that", "whats that", "see this", "check this out",
-                "tell me about this", "read this", "scan this"].contains { s.contains($0) }
+                "tell me about this"].contains { s.contains($0) }
+    }
+
+    private static func isReadIntent(_ t: String) -> Bool {
+        let s = t.lowercased()
+        return ["read this", "read the", "read that", "read it", "read to me", "read book",
+                "read a book", "read newspaper", "read page", "start reading", "read mode",
+                "scan this"].contains { s.contains($0) }
+    }
+
+    private static func isNextPageIntent(_ t: String) -> Bool {
+        let s = t.lowercased()
+        return ["next page", "next", "continue", "keep going", "turn the page",
+                "go on"].contains { s.contains($0) }
+    }
+
+    private static func isDoneReadingIntent(_ t: String) -> Bool {
+        let s = t.lowercased()
+        return ["stop reading", "done reading", "that's it", "thats it", "i'm done",
+                "im done", "finished", "stop"].contains { s.contains($0) }
     }
 
     /// Typed prompt: tell the guide where you are / what you see.
@@ -327,7 +372,57 @@ final class AppModel: ObservableObject {
     func usePickedImage(_ data: Data?) {
         isPickingImage = false
         guard let data else { return }
-        Task { await respond(userText: "", imageJPEG: data) }
+        Task {
+            if readModeActive { await readPage(data) }
+            else { await respond(userText: "", imageJPEG: data) }
+        }
+    }
+
+    // MARK: - Read mode (books / newspapers / letters — on-device OCR → speech)
+
+    func startReading() async {
+        stopSpeaking()
+        readModeActive = true
+        readPageCount = 0
+        await captureAndReadPage()
+    }
+
+    func captureAndReadPage() async {
+        if glassesState == .connected, let frame = try? await glasses.capturePhoto() {
+            await readPage(frame)
+            return
+        }
+        isPickingImage = true   // picked photo routes to readPage while in read mode
+    }
+
+    func stopReading() {
+        readModeActive = false
+        stopSpeaking()
+        transcript = ""
+        lastNarration = ""
+    }
+
+    /// OCR the page on-device and narrate it. No cloud call, no cost — and
+    /// deliberately no journaling: what you read stays on the phone.
+    private func readPage(_ imageJPEG: Data) async {
+        isThinking = true
+        defer { isThinking = false }
+        let page = await PageReader.read(imageJPEG)
+        if page.isSparse {
+            let tip = glassesState == .connected
+                ? "I couldn't read much there. Hold the page closer and steady, or press "
+                  + "the capture button on your glasses for a sharper photo."
+                : "I couldn't read much there. Try a closer, sharper photo."
+            lastNarration = tip
+            deviceSpeaker.speak(tip)
+            return
+        }
+        readPageCount += 1
+        transcript = "(page \(readPageCount))"
+        lastNarration = page.text
+        // Long-form reading always uses the free on-device voice — a whole page
+        // through a paid TTS API would cost real money and hit size limits.
+        deviceSpeaker.speak(page.text)
     }
 
     /// Run the brain pipeline (memory recall + auto-fallback), speak the answer,
