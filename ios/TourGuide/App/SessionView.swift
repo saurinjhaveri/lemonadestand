@@ -190,9 +190,16 @@ struct SessionView: View {
 
     /// Read-mode page flow: also voice-driven ("next page" / "stop reading").
     private var readingChips: some View {
-        HStack(spacing: 8) {
-            followChip("Next page", "arrow.right.circle") { Task { await model.captureAndReadPage() } }
-            followChip("Done reading", "checkmark") { model.stopReading() }
+        VStack(spacing: 8) {
+            if !model.cloudOCRError.isEmpty {
+                Label("Using device OCR — \(model.cloudOCRError)", systemImage: "exclamationmark.triangle")
+                    .font(.caption2).foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: 8) {
+                followChip("Next page", "arrow.right.circle") { Task { await model.captureAndReadPage() } }
+                followChip("Done reading", "checkmark") { model.stopReading() }
+            }
         }
     }
 

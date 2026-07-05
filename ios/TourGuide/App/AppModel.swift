@@ -18,6 +18,9 @@ final class AppModel: ObservableObject {
     @Published var photoWatchStatus = ""
     /// Read mode: narrating pages (book/newspaper/letter) via on-device OCR.
     @Published private(set) var readModeActive = false
+    /// Last Cloud OCR failure reason (shown in Read mode so silent fallback to
+    /// native OCR is visible). Empty when Cloud OCR succeeded or wasn't tried.
+    @Published var cloudOCRError = ""
     private var readPageCount = 0
 
     // Settings (persisted).
@@ -432,14 +435,21 @@ final class AppModel: ObservableObject {
 
         var text: String?
         var tag = ""
+        cloudOCRError = ""
 
         // 1) Google Cloud Vision document OCR when configured — purpose-built
         //    for dense pages and imperfect scans, verbatim by construction.
         if !Config.googleVisionAPIKey.isEmpty {
-            if let cloud = try? await CloudOCR.transcribe(imageJPEG), cloud.count > 40 {
-                text = cloud
-                tag = " · Cloud"
+            do {
+                let cloud = try await CloudOCR.transcribe(imageJPEG)
+                if cloud.count > 40 { text = cloud; tag = " · Cloud" }
+                else { cloudOCRError = "Cloud OCR returned almost no text" }
+            } catch {
+                cloudOCRError = "Cloud OCR: \(error.localizedDescription)"
+                print("⚠️ CloudOCR failed: \(error)")
             }
+        } else {
+            cloudOCRError = "No Vision key configured"
         }
 
         // 2) On-device OCR (free/offline), with verified AI repair for shaky
