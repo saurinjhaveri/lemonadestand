@@ -165,7 +165,12 @@ final class MetaDATGlassesProvider: GlassesProvider {
         self.session = deviceSession
 
         // Add a camera stream and listen for captured photos.
-        let config = StreamConfiguration(videoCodec: .raw, resolution: .high, frameRate: 24)
+        // Capture-oriented config: we only need the LATEST frame for snapshots,
+        // not smooth video. 2fps/.medium keeps Bluetooth usage tiny — continuous
+        // .high/24fps saturates the shared BT/2.4GHz radio, strangling the
+        // phone's internet (slow/hung answers) and heating the glasses. Per
+        // Meta's docs, .medium also gives BETTER per-frame quality than .high.
+        let config = StreamConfiguration(videoCodec: .raw, resolution: .medium, frameRate: 2)
         guard let stream = try deviceSession.addStream(config: config) else {
             throw GlassesError.captureFailed
         }

@@ -10,7 +10,15 @@ final class GeminiBackend: ReasoningBackend {
     private let model: String
     private let session: URLSession
 
-    init(model: String = Config.geminiModel, session: URLSession = .shared) {
+    /// Hard request timeouts so a bad network can't hang a turn for 60s.
+    static let apiSession: URLSession = {
+        let c = URLSessionConfiguration.default
+        c.timeoutIntervalForRequest = 20
+        c.timeoutIntervalForResource = 35
+        return URLSession(configuration: c)
+    }()
+
+    init(model: String = Config.geminiModel, session: URLSession = GeminiBackend.apiSession) {
         self.model = model
         self.session = session
     }

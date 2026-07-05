@@ -13,7 +13,7 @@ final class OpenAICompatibleBackend: ReasoningBackend {
     private let session: URLSession
 
     init(displayName: String, baseURL: String, apiKey: String, model: String,
-         supportsVision: Bool, session: URLSession = .shared) {
+         supportsVision: Bool, session: URLSession = GeminiBackend.apiSession) {
         self.displayName = displayName
         self.baseURL = baseURL
         self.apiKey = apiKey
