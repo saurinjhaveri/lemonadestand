@@ -56,6 +56,20 @@ issue / developer-forum post.
    bundle ID and the failure mode downstream (silent non-return during
    registration) gives no diagnostic pointing back to it.
 
+## Related open issues (same family, none with maintainer responses as of June 2026)
+
+- **#188** — startRegistration fails, `LSApplicationWorkspaceErrorDomain Code=115`
+  (identical to ours; affects native + Flutter, new and existing apps, any DAT version).
+- **#215** — Meta AI opens from `startRegistration()` but shows no approval sheet
+  when it was backgrounded; no error surfaced. Workaround: kill Meta AI first.
+- **#219** — production/release-channel registration completes in Meta AI but no
+  callback is returned to the app (the "approved but never returns" symptom).
+- **#205** — "Internal error" in Meta AI during startRegistration (iPhone 17e),
+  reproducible with the official sample.
+- **#222** — iPhone 17 Pro + Ray-Ban Meta Gen 2: "The operation could not be completed."
+- **#133** — requestPermission(.camera) deep-links to Meta View/AI but the
+  permission modal never appears; hangs indefinitely (iOS 26).
+
 ## Environment
 - meta-wearables-dat-ios 0.7.0 (also reproduced pre-0.7 behaviors per CHANGELOG)
 - iPhone on iOS 26.x, paid Apple Developer team, Associated Domains verified
