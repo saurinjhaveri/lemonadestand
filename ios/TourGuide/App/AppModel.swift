@@ -135,7 +135,16 @@ final class AppModel: ObservableObject {
         deviceSpeaker.voiceIdentifier = deviceVoiceID.isEmpty ? nil : deviceVoiceID
 
         // A new photo in the Camera Roll (e.g. synced from the glasses) → narrate
-        // it hands-free. Ignore captures that land while we're still answering.
+        // it hands-free. Acknowledge the instant it's detected (before the image
+        // even loads) so the wait feels short.
+        photoWatcher.onPhotoDetected = { [weak self] in
+            Task { @MainActor in
+                guard let self, !self.isThinking else { return }
+                self.stopSpeaking()                       // new capture interrupts old answer
+                self.transcript = "(new photo from glasses)"
+                self.activeSpeaker.speak("Got it — taking a look.")
+            }
+        }
         photoWatcher.onNewPhoto = { [weak self] data in
             Task { @MainActor in
                 guard let self, !self.isThinking else { return }

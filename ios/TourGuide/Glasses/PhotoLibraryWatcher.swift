@@ -9,6 +9,9 @@ import UIKit
 final class PhotoLibraryWatcher: NSObject, PHPhotoLibraryChangeObserver {
     /// Delivers a newly-added photo as JPEG. Called on the main queue.
     var onNewPhoto: ((Data) -> Void)?
+    /// Fires the instant a new photo is detected, before its data loads — lets
+    /// the app acknowledge immediately while the image is prepared.
+    var onPhotoDetected: (() -> Void)?
 
     private var running = false
     private var since = Date.distantPast      // only photos newer than this
@@ -43,17 +46,22 @@ final class PhotoLibraryWatcher: NSObject, PHPhotoLibraryChangeObserver {
         guard let asset = PHAsset.fetchAssets(with: opts).firstObject,
               let created = asset.creationDate, created > since else { return }
         since = created
+        DispatchQueue.main.async { self.onPhotoDetected?() }
         loadJPEG(from: asset)
     }
 
     private func loadJPEG(from asset: PHAsset) {
         let opts = PHImageRequestOptions()
         opts.deliveryMode = .highQualityFormat
+        opts.resizeMode = .fast
         opts.isNetworkAccessAllowed = true     // allow iCloud download if needed
-        imageManager.requestImageDataAndOrientation(for: asset, options: opts) { [weak self] data, _, _, _ in
-            guard let self, let data else { return }
-            // Re-encode (HEIC → JPEG) and downscale a touch for the vision model.
-            let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.7) ?? data
+        // The vision models need ~1MP, not the 12MP sensor image — asking Photos
+        // for a downscaled render skips the full-size decode + our recompress,
+        // shaving seconds off glasses→narration latency.
+        let target = CGSize(width: 1280, height: 1280)
+        imageManager.requestImage(for: asset, targetSize: target, contentMode: .aspectFit,
+                                  options: opts) { [weak self] image, _ in
+            guard let self, let jpeg = image?.jpegData(compressionQuality: 0.7) else { return }
             DispatchQueue.main.async { self.onNewPhoto?(jpeg) }
         }
     }
