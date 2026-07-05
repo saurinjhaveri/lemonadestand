@@ -60,12 +60,16 @@ final class DATTester: ObservableObject {
 
             log("② registration state = \(w.registrationState.description)")
             if w.registrationState != .registered {
-                log("   not registered — starting registration (up to 90s).")
-                log("   👉 When the Meta AI app opens, APPROVE/trust the app, then return here.")
-                await registerWithTimeout(w, seconds: 90)
+                log("   not registered — Registration Doctor (up to 3 attempts / 120s).")
+                log("   📋 BEST-ODDS SEQUENCE (from SDK issues #188/#215):")
+                log("     1. FORCE-QUIT the Meta AI app BEFORE this (swipe it away).")
+                log("     2. Approve in Meta AI when it opens, then RETURN HERE and wait.")
+                log("     3. If all 3 attempts fail: REBOOT the iPhone and run Connect again.")
+                await registerWithTimeout(w, seconds: 120)
                 log("   registration state now = \(w.registrationState.description)")
                 if w.registrationState != .registered {
-                    log("   ✗ registration didn't reach 'registered'. Did the Meta AI app open and let you approve?")
+                    log("   ✗ still not registered. Reboot the iPhone and retry; if it persists,")
+                    log("     this is the open iOS-26 return-callback bug (#219).")
                 }
             }
 
@@ -159,25 +163,25 @@ final class DATTester: ObservableObject {
     // MARK: - Helpers
 
     #if canImport(MWDATCore)
-    /// Poll registration state up to `seconds`, calling startRegistration() exactly
-    /// once. Polling (not the state stream) avoids the cancellation/spam problems.
+    /// Registration Doctor: poll up to `seconds`, calling startRegistration() up
+    /// to 3 times. Per SDK issue #215, a fresh attempt after bouncing back to
+    /// .available sometimes completes the handshake the first attempt dropped;
+    /// #188 reports a device reboot clears LSApplicationWorkspace failures.
     private func registerWithTimeout(_ w: any WearablesInterface, seconds: Double) async {
         let deadline = Date().addingTimeInterval(seconds)
-        var triggered = false
+        var attempts = 0
+        var lastAttempt = Date.distantPast
         var last = ""
         while Date() < deadline {
             let s = w.registrationState
             if s.description != last { log("   reg state → \(s.description)"); last = s.description }
             if s == .registered { return }
-            if s == .available && !triggered {
-                triggered = true
-                log("   calling startRegistration()…")
-                do {
-                    try await w.startRegistration()
-                    log("   startRegistration() returned ✓ — approve in the Meta AI app now")
-                } catch {
-                    log("   startRegistration ERROR: \(describe(error))")
-                }
+            if s == .available, attempts < 3, Date().timeIntervalSince(lastAttempt) > 8 {
+                attempts += 1
+                lastAttempt = Date()
+                log("   startRegistration() attempt \(attempts)/3 — approve in Meta AI, then RETURN HERE")
+                do { try await w.startRegistration() }
+                catch { log("   startRegistration ERROR: \(describe(error))") }
             }
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
