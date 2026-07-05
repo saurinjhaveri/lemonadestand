@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import CoreLocation
+import UIKit
 
 /// Coordinates location, on-device voice (Lite), the Camera Roll bridge, and the
 /// reasoning/vision brain. Glasses reach the app by syncing their photos to the
@@ -287,6 +288,7 @@ final class AppModel: ObservableObject {
                 return
             }
             readModeActive = false   // a real question mid-read → answer it normally
+            photoWatcher.fullResolution = false
         }
         if Self.isReadIntent(text) {
             await startReading()
@@ -383,20 +385,26 @@ final class AppModel: ObservableObject {
     func startReading() async {
         stopSpeaking()
         readModeActive = true
+        photoWatcher.fullResolution = true    // hardware-button pages at full 12MP
         readPageCount = 0
         await captureAndReadPage()
     }
 
     func captureAndReadPage() async {
-        if glassesState == .connected, let frame = try? await glasses.capturePhoto() {
-            await readPage(frame)
-            return
+        if glassesState == .connected {
+            isThinking = true
+            // Text needs pixels: ask the glasses for a REAL photo (slower than
+            // the cached stream frame, far sharper). Falls back internally.
+            let shot = try? await glasses.capturePhoto(preferDevicePhoto: true)
+            isThinking = false
+            if let shot { await readPage(shot); return }
         }
         isPickingImage = true   // picked photo routes to readPage while in read mode
     }
 
     func stopReading() {
         readModeActive = false
+        photoWatcher.fullResolution = false
         stopSpeaking()
         transcript = ""
         lastNarration = ""
@@ -418,7 +426,13 @@ final class AppModel: ObservableObject {
             return
         }
         readPageCount += 1
-        transcript = "(page \(readPageCount))"
+        // Show the source resolution — tells us instantly whether a bad read
+        // came from a low-res frame or genuinely hard print.
+        if let dims = UIImage(data: imageJPEG)?.size {
+            transcript = String(format: "(page %d · %.0f×%.0f)", readPageCount, dims.width, dims.height)
+        } else {
+            transcript = "(page \(readPageCount))"
+        }
         lastNarration = page.text
         // Long-form reading always uses the free on-device voice — a whole page
         // through a paid TTS API would cost real money and hit size limits.

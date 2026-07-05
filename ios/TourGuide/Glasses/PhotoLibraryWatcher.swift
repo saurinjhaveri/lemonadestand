@@ -13,6 +13,10 @@ final class PhotoLibraryWatcher: NSObject, PHPhotoLibraryChangeObserver {
     /// the app acknowledge immediately while the image is prepared.
     var onPhotoDetected: (() -> Void)?
 
+    /// When true (Read mode), deliver photos at full resolution — text needs
+    /// every pixel. Otherwise a 1280px render is faster and plenty for scene ID.
+    var fullResolution = false
+
     private var running = false
     private var since = Date.distantPast      // only photos newer than this
     private let imageManager = PHImageManager.default()
@@ -55,10 +59,9 @@ final class PhotoLibraryWatcher: NSObject, PHPhotoLibraryChangeObserver {
         opts.deliveryMode = .highQualityFormat
         opts.resizeMode = .fast
         opts.isNetworkAccessAllowed = true     // allow iCloud download if needed
-        // The vision models need ~1MP, not the 12MP sensor image — asking Photos
-        // for a downscaled render skips the full-size decode + our recompress,
-        // shaving seconds off glasses→narration latency.
-        let target = CGSize(width: 1280, height: 1280)
+        // Scene ID needs ~1MP (fast); reading text needs the full sensor image.
+        let target = fullResolution ? PHImageManagerMaximumSize
+                                    : CGSize(width: 1280, height: 1280)
         imageManager.requestImage(for: asset, targetSize: target, contentMode: .aspectFit,
                                   options: opts) { [weak self] image, _ in
             guard let self, let jpeg = image?.jpegData(compressionQuality: 0.7) else { return }

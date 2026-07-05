@@ -224,13 +224,14 @@ final class MetaDATGlassesProvider: GlassesProvider {
         connectionState = .disconnected
     }
 
-    func capturePhoto() async throws -> Data {
+    func capturePhoto(preferDevicePhoto: Bool) async throws -> Data {
         guard let stream else { throw GlassesError.notConnected }
-        // Instant path: the live stream already delivers what the wearer sees,
-        // at the same streaming resolution a device photo request returns —
-        // minus the multi-second round trip. Only fall back to a real photo
-        // request when no frame has arrived yet.
-        if let data = latestFrameJPEG() { return data }
+        // Instant path: the live stream already delivers what the wearer sees —
+        // good enough for scene questions, minus the round trip. Read mode asks
+        // for a REAL device photo instead (preferDevicePhoto): text needs every
+        // pixel the camera can give.
+        if !preferDevicePhoto, let data = latestFrameJPEG() { return data }
+        let deadline: TimeInterval = preferDevicePhoto ? 8 : 4
         // ALL continuation handling is serialized on the main queue — the photo
         // listener and the failsafe both run there, so a resume can never be
         // missed (a set-on-background/read-on-main race could hang the turn).
@@ -253,7 +254,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
                 }
                 // Failsafe: if the photo doesn't arrive promptly, answer with the
                 // newest live-stream frame instead of hanging the turn.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + deadline) { [weak self] in
                     guard let self, let pending = self.photoContinuation else { return }
                     self.photoContinuation = nil
                     if let data = self.latestFrameJPEG() {
@@ -355,7 +356,7 @@ final class MetaDATGlassesProvider: GlassesProvider {
         throw GlassesError.sdkUnavailable
     }
     func disconnect() { connectionState = .disconnected }
-    func capturePhoto() async throws -> Data { throw GlassesError.sdkUnavailable }
+    func capturePhoto(preferDevicePhoto: Bool) async throws -> Data { throw GlassesError.sdkUnavailable }
 }
 
 #endif

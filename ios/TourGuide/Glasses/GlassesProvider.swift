@@ -15,8 +15,17 @@ protocol GlassesProvider: AnyObject {
     func connect() async throws
     func disconnect()
 
-    /// Capture a single still from the glasses camera as JPEG data.
-    func capturePhoto() async throws -> Data
+    /// Capture a still from the glasses camera as JPEG data.
+    /// `preferDevicePhoto` requests a real photo from the device (slower,
+    /// highest quality — for reading text) instead of the cached stream frame.
+    func capturePhoto(preferDevicePhoto: Bool) async throws -> Data
+}
+
+extension GlassesProvider {
+    /// Fast path: cached stream frame when available.
+    func capturePhoto() async throws -> Data {
+        try await capturePhoto(preferDevicePhoto: false)
+    }
 }
 
 enum GlassesError: LocalizedError {
@@ -54,7 +63,7 @@ final class MockGlassesProvider: GlassesProvider {
         connectionState = .disconnected
     }
 
-    func capturePhoto() async throws -> Data {
+    func capturePhoto(preferDevicePhoto: Bool) async throws -> Data {
         guard connectionState == .connected else { throw GlassesError.notConnected }
         let size = CGSize(width: 1024, height: 768)
         let renderer = UIGraphicsImageRenderer(size: size)
